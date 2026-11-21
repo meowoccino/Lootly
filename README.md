@@ -1,4 +1,3 @@
-# Lootly
 **Twitch Watch-Time Badge Miner for Android**
 
 ## 1. Project Overview & Features
