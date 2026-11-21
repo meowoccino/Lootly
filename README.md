@@ -1,6 +1,5 @@
-# Lootly - Twitch Watch-Time Badge Miner for Android
-
----
+# Lootly
+**Twitch Watch-Time Badge Miner for Android**
 
 ## 1. Project Overview & Features
 
@@ -52,8 +51,6 @@ Lootly is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-
    - Expandable **ELIGIBLE** queue listing upcoming badge tiers with icons and required watch minutes.
    - Live monospace Miner Console with local timestamp alignment (`HH:mm:ss`), color-coded log levels, and automatic suppression of internal debug spam.
 
----
-
 ## 2. Upstream Repositories & Attribution
 
 1. **Upstream Go Mining Engine:**
@@ -75,15 +72,11 @@ Lootly is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-
    - Dynamic POSIX and loopback HTTP control API (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`).
    - Exclusion of desktop Cgo/X11 systray dependencies for pure Go Android ARM64 compilation.
 
----
-
 ## 3. License
 
 Lootly and its vendored engine are licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 
 Full text of the GNU General Public License v3.0 is preserved in `go-miner/LICENSE.txt`. Anyone redistributing or modifying this software must provide source code under the terms of the GPL-3.0.
-
----
 
 ## 4. Android Permissions & Justification
 
@@ -109,8 +102,6 @@ The following permissions are declared in `app/src/main/AndroidManifest.xml` and
 
 7. **`android.permission.PACKAGE_USAGE_STATS`:**
    - Special system access required by `AppUsageMonitor` to detect when the official Twitch app (`tv.twitch.android.app`) is active in the foreground so Auto-Pause can pause heartbeats and avoid concurrent stream watch conflicts.
-
----
 
 ## 5. How It Was Built & Compilation Instructions
 
@@ -177,8 +168,6 @@ This repository includes a CI workflow at `.github/workflows/build-apk.yml`:
 2. Go to the **Actions** tab on GitHub.
 3. The **Build Android APK** workflow runs on `ubuntu-latest` runners.
 4. It sets up Go and Android SDK 35, runs all Go and Kotlin unit tests, cross-compiles the ARM64 engine, assembles the debug APK, and uploads it under **Artifacts** as `twitch-badge-miner-debug-apk`.
-
----
 
 ## 6. Security & Privacy
 
