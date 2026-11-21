@@ -106,15 +106,13 @@ The compiled APK outputs to `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Android Permissions
 
-| Permission | Purpose |
-| :--- | :--- |
-| `INTERNET` | Communicates with Twitch GraphQL APIs, HLS manifests, segment servers, local integrity bridge, and loads badge icons via Coil. |
-| `ACCESS_NETWORK_STATE` | Monitors Wi-Fi and mobile data state to pause/resume network activity on connection changes. |
-| `FOREGROUND_SERVICE` & `FOREGROUND_SERVICE_DATA_SYNC` | Keeps `MinerForegroundService` alive in the background on Android 9+ and Android 14+. |
-| `POST_NOTIFICATIONS` | Displays the live progress notification (with Pause/Resume/Stop controls) and alerts when badges are claimed. |
-| `WAKE_LOCK` | Holds `PARTIAL_WAKE_LOCK` while actively mining so heartbeats fire with the screen off (released during Zero-Battery Standby). |
-| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Exempts the app from Doze mode and OEM background battery restrictions for uninterrupted mining. |
-| `PACKAGE_USAGE_STATS` | Allows `AppUsageMonitor` to detect when the official Twitch app (`tv.twitch.android.app`) is in the foreground to trigger Auto-Pause. |
+- **`INTERNET`**: Communicates with Twitch GraphQL APIs, HLS manifests, segment servers, local integrity bridge, and loads badge icons via Coil.
+- **`ACCESS_NETWORK_STATE`**: Monitors Wi-Fi and mobile data state to pause/resume network activity on connection changes.
+- **`FOREGROUND_SERVICE` & `FOREGROUND_SERVICE_DATA_SYNC`**: Keeps `MinerForegroundService` alive in the background on Android 9+ and Android 14+.
+- **`POST_NOTIFICATIONS`**: Displays the live progress notification (with Pause/Resume/Stop controls) and alerts when badges are claimed.
+- **`WAKE_LOCK`**: Holds `PARTIAL_WAKE_LOCK` while actively mining so heartbeats fire with the screen off (released during Zero-Battery Standby).
+- **`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`**: Exempts the app from Doze mode and OEM background battery restrictions for uninterrupted mining.
+- **`PACKAGE_USAGE_STATS`**: Allows `AppUsageMonitor` to detect when the official Twitch app (`tv.twitch.android.app`) is in the foreground to trigger Auto-Pause.
 
 ---
 
@@ -132,4 +130,4 @@ The compiled APK outputs to `app/build/outputs/apk/debug/app-debug.apk`.
 - **Upstream Go Engine:** [Guliveer/twitch-miner-go](https://github.com/Guliveer/twitch-miner-go) (commit `e98e7d639a9397a01d2a245ed35df489ff61c3ed`), enhanced for Android with a pure-Go DNS resolver (`internal/androidnet/dns_android.go` with Cloudflare DoH `1.1.1.1` fallback), Android 14+ Conscrypt `SSL_CERT_DIR` discovery, WebView integrity bridge integration, multi-tier badge scraper with 60m daily cap rotation, live progress analytics (`/api/streamers`), loopback control endpoints (`/api/control/*`), and Cgo/X11 systray removal.
 - **Badge Catalog Source:** [StreamDatabase Twitch Global Badges](https://www.streamdatabase.com/twitch/global-badges)
 
-Licensed under the **GNU General Public License v3.0 (GPL-3.0)** (see `go-miner/LICENSE.txt`). Anyone redistributing or modifying this software must provide source code under the terms of GPL-3.0[span_0](start_span)[span_0](end_span).
+Licensed under the **GNU General Public License v3.0 (GPL-3.0)** (see `go-miner/LICENSE.txt`). Anyone redistributing or modifying this software must provide source code under the terms of GPL-3.0[span_2](start_span)[span_2](end_span).
