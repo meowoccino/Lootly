@@ -1,4 +1,4 @@
-# Lootly - Twitch Watch Time Badge Miner for Android
+# Lootly - Twitch Watch-Time Badge Miner for Android
 
 An automated, zero-video-bandwidth Twitch watch-time badge miner for Android. Built as a native Kotlin application (Min SDK 26, Target SDK 35, ARM64-v8a) with a Jetpack Compose Material 3 dark UI and a vendored Go mining engine.
 
