@@ -141,7 +141,7 @@ Declared in `app/src/main/AndroidManifest.xml`:
 ## 4. Security & Privacy
 
 - **No Analytics:** Zero tracking SDKs, telemetry, Firebase, or ad libraries.
-- **Encrypted Credentials:** Session cookies and tokens are stored in Android Keystore `EncryptedSharedPreferences`; no plaintext credentials are written to disk or shared storage.
+- **Encrypted Credentials:** Session cookies and tokens are stored in Android Keystore `EncryptedSharedPreferences` no plaintext credentials are written to disk or shared storage.
 - **Local Loopback IPC:** Communication between the Kotlin app and Go binary uses `127.0.0.1` HTTP sockets authenticated with a per-session random secret.
 - **Standard App Sandbox:** Runs inside the standard Android app sandbox without root or Shizuku.
 
