@@ -27,16 +27,16 @@ Lootly (`com.lootly.app`) is a native Kotlin Android application (Min SDK 26, Ta
    - Watch-time minutes are recognized by Twitch's drop tracking servers while consuming less than 1% of normal video data and CPU bandwidth.
 
 4. **Real-Time Badge Discovery & Dynamic Multi-Tier Handling:**
-   - Periodically scrapes and indexes public watch-time badges from Twitch GQL and `streamdatabase.com/twitch/global-badges`.
+   - Periodically scrapes and indexes public watch-time badges from Twitch GQL and `streamdatabase.com/twitch/global-badges` using randomized **±4 minute** jitter on the 1-hour catalog scan timer.
    - Resolves multi-tier badge progressions (e.g., Payday 3: Clover -> Pearl -> Joy; Pokemon Evolutions; GTAVI Chains) in ascending tier order and calculates per-tier step durations dynamically (e.g., `60m/day` for GTAVI, `30m` for 30m-step campaigns).
-   - Prioritizes the lowest-duration unowned tier first.
+   - Prioritizes campaigns by earliest expiration date and lowest-duration unowned tier first.
    - Respects daily watch caps on multi-day events, rotating to the next eligible campaign and remembering daily-capped campaigns until the next UTC day.
 
-5. **Manual Badge Switcher (`TARGET` Tile) & Instant Auto-Switching:**
+5. **Manual Badge Switcher (`TARGET` Tile), Instant Auto-Switching & Natural Pacing:**
    - Tap any badge in the expandable **ELIGIBLE** queue to pin and mine it immediately via the **TARGET** (`Auto` / `Pinned`) tile.
    - Tap **TARGET** (or **Reset Auto**) at any time to switch back to automatic priority, or let it auto-reset to `Auto` once the pinned badge is earned or hits its daily cap.
    - Real-time minute-by-minute progress calculation: local session watch time is interpolated with Twitch GQL inventory syncs to prevent progress from stalling at static percentages.
-   - Transitions to the next tier or queued campaign when a badge reaches 100% or is claimed, removing claimed badges from the **ELIGIBLE** queue.
+   - Transitions smoothly between campaigns with a randomized **20–55s** human-like claim delay on completed badges and a **5–12s** cooldown when switching streams, removing claimed badges from the **ELIGIBLE** queue.
 
 6. **Official Twitch App UsageStats Auto-Pause:**
    - Integrated `AppUsageMonitor` polls `UsageStatsManager` every 3 seconds.
@@ -46,13 +46,13 @@ Lootly (`com.lootly.app`) is a native Kotlin Android application (Min SDK 26, Ta
 7. **Resilient Foreground Service & Zero-Battery Standby:**
    - `MinerForegroundService` runs under Android's Foreground Service type `DATA_SYNC` (`START_STICKY`) with partial WakeLock.
    - Displays an ongoing Android notification with badge progress, percentage, ETA, and Pause/Resume/Stop actions.
-   - Enters Zero-Battery Standby mode when 0 eligible badges remain in the catalog, releasing the partial WakeLock until the next 1-hour catalog scan.
+   - Enters Zero-Battery Standby mode when 0 eligible badges remain in the catalog, releasing the partial WakeLock until the next catalog scan.
 
 8. **Material 3 Jetpack Compose UI:**
    - Account status card displaying Twitch avatar, display name, username, user ID, and single-tap Logout.
    - Auto-hiding Permission Health Bar (collapses once Usage Stats, Battery Optimization, and Notifications are granted).
    - Active Badge Card with badge icon, title, streamer name, category, animated progress bar, split percentage (left) and ETA (`~Xm left`, right), and **TARGET** mode indicator (`Auto` / `Pinned`).
-   - Expandable **ELIGIBLE** queue listing upcoming badge tiers with icons, required watch minutes, and tap-to-pin selection.
+   - Expandable **ELIGIBLE** queue sorted to match Auto priority order (pinned badge first, followed by earliest expiration date) with icons, required watch minutes, and tap-to-pin selection.
    - Collapsible live monospace Miner Console (expanded by default, collapses/expands on tap) with local timestamp alignment (`HH:mm:ss`), color-coded log levels, and automatic suppression of internal debug spam.
 
 ---
@@ -177,7 +177,7 @@ The following permissions are declared in `app/src/main/AndroidManifest.xml` and
    - Pure-Go Android DNS resolver (`internal/androidnet/dns_android.go`) bypassing Android's lack of `/etc/resolv.conf`, with Cloudflare DoH (`1.1.1.1`) and system DNS fallback (for when local VPN firewalls like AdGuard block `spade.twitch.tv`).
    - Android 14+ Conscrypt system CA certificate discovery (`SSL_CERT_DIR`).
    - Headless WebView Client-Integrity bridge HTTP client (`internal/auth/`, `internal/gql/`).
-   - Multi-level badge scraper, dynamic step duration resolver, and daily watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`).
+   - Multi-level badge scraper, dynamic step duration resolver, priority queue sorting, randomized scan/switch/claim pacing, and daily watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`, `internal/watcher/loop.go`, `internal/twitch/drops.go`).
    - Real-time minute watcher and live progress calculation in embedded analytics server (`/api/streamers`).
    - Dynamic POSIX and loopback HTTP control API (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`, `POST /api/control/pin-badge`).
    - Exclusion of desktop Cgo/X11 systray dependencies for pure Go Android ARM64 compilation.
