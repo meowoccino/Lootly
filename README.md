@@ -1,3 +1,5 @@
+# Lootly
+
 **Twitch Watch-Time Badge Miner for Android**
 
 > **Disclaimer:** Lootly is an independent, open-source project and is **not** affiliated with, endorsed, or sponsored by Twitch Interactive, Inc. or StreamDatabase. Automating watch-time or interacting with Twitch's internal APIs falls outside Twitch's official Terms of Service—while single-stream watch-time clients rarely face enforcement, use this software at your own discretion and risk.
@@ -6,15 +8,15 @@
 
 ## 1. Project Overview & Features
 
-Lootly is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-v8a, Jetpack Compose Material 3 dark UI) for automated Twitch watch-time badge farming with zero manual token handling and minimal background data usage.
+Lootly (`com.lootly.app`) is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-v8a, Jetpack Compose Material 3 dark UI) for automated Twitch watch-time badge farming with zero manual token handling and minimal background data usage.
 
 ### Key Capabilities & Features
 
-1. **Zero-Token Native WebView Authentication:**
+1. **Zero-Token Native WebView Authentication & Auto-Start:**
    - Dedicated native `LoginActivity` loading the official Twitch login page (`https://www.twitch.tv/login`).
    - Intercepts `auth-token`, `twilight-user`, and `unique_id` cookies directly from Android `CookieManager` upon login.
    - Stores credentials in Android Keystore-backed `EncryptedSharedPreferences` (`MasterKey` AES-256 GCM).
-   - No manual copy-pasting of OAuth tokens, Client IDs, or passwords.
+   - Automatically starts mining on app launch (when signed in) and immediately after login, with no manual copy-pasting of OAuth tokens, Client IDs, or passwords.
 
 2. **Automated Headless WebView Integrity Bridge:**
    - Boots an isolated, headless Android WebView offscreen sharing the logged-in session with image, video, and font loading disabled.
@@ -26,16 +28,17 @@ Lootly is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-
    - Requests only HLS stream manifests (`.m3u8`) and issues HTTP `HEAD` requests to lowest-quality video segments (`usher.ttvnw.net`) alongside spade heartbeat telemetry instead of downloading video streams.
    - Watch-time minutes are recognized by Twitch's drop tracking servers while consuming less than 1% of normal video data and CPU bandwidth.
 
-4. **Real-Time Badge Discovery & Catalog Monitoring:**
+4. **Real-Time Badge Discovery & Dynamic Multi-Tier Handling:**
    - Periodically scrapes and indexes public watch-time badges from Twitch GQL and `streamdatabase.com/twitch/global-badges`.
-   - Resolves multi-tier badge progressions (e.g., Payday 3: Clover -> Pearl -> Joy; Pokemon Evolutions; GTAVI Chains).
+   - Resolves multi-tier badge progressions (e.g., Payday 3: Clover -> Pearl -> Joy; Pokemon Evolutions; GTAVI Chains) in ascending tier order and calculates per-tier step durations dynamically (e.g., `60m/day` for GTAVI, `30m` for 30m-step campaigns).
    - Prioritizes the lowest-duration unowned tier first.
-   - Respects 60-minute daily caps on multi-day events (such as GTAVI 6-day chains), rotating to the next eligible campaign once today's cap is reached.
+   - Respects daily watch caps on multi-day events, rotating to the next eligible campaign and remembering daily-capped campaigns until the next UTC day.
 
-5. **Instant Auto-Switching & Real-Time Progress:**
+5. **Manual Badge Switcher (`TARGET` Tile) & Instant Auto-Switching:**
+   - Tap any badge in the expandable **ELIGIBLE** queue to pin and mine it immediately via the **TARGET** (`Auto` / `Pinned`) tile.
+   - Tap **TARGET** (or **Reset Auto**) at any time to switch back to automatic priority, or let it auto-reset to `Auto` once the pinned badge is earned or hits its daily cap.
    - Real-time minute-by-minute progress calculation: local session watch time is interpolated with Twitch GQL inventory syncs to prevent progress from stalling at static percentages.
-   - Transitions to the next tier or queued campaign when a badge reaches 100% or is claimed.
-   - Removes claimed badges from the expandable **ELIGIBLE** queue.
+   - Transitions to the next tier or queued campaign when a badge reaches 100% or is claimed, removing claimed badges from the **ELIGIBLE** queue.
 
 6. **Official Twitch App UsageStats Auto-Pause:**
    - Integrated `AppUsageMonitor` polls `UsageStatsManager` every 3 seconds.
@@ -50,9 +53,9 @@ Lootly is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-
 8. **Material 3 Jetpack Compose UI:**
    - Account status card displaying Twitch avatar, display name, username, user ID, and single-tap Logout.
    - Auto-hiding Permission Health Bar (collapses once Usage Stats, Battery Optimization, and Notifications are granted).
-   - Active Badge Card with badge icon, title, streamer name, category, animated progress bar, percentage, and ETA (`~Xm left`).
-   - Expandable **ELIGIBLE** queue listing upcoming badge tiers with icons and required watch minutes.
-   - Live monospace Miner Console with local timestamp alignment (`HH:mm:ss`), color-coded log levels, and automatic suppression of internal debug spam.
+   - Active Badge Card with badge icon, title, streamer name, category, animated progress bar, split percentage (left) and ETA (`~Xm left`, right), and **TARGET** mode indicator (`Auto` / `Pinned`).
+   - Expandable **ELIGIBLE** queue listing upcoming badge tiers with icons, required watch minutes, and tap-to-pin selection.
+   - Collapsible live monospace Miner Console (expanded by default, collapses/expands on tap) with local timestamp alignment (`HH:mm:ss`), color-coded log levels, and automatic suppression of internal debug spam.
 
 ---
 
@@ -60,7 +63,7 @@ Lootly is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-
 
 Lootly consists of two integrated components:
 1. Native ARM64 Go binary compiled as a shared object (`libtwitchminer.so`) inside the app's native library directory.
-2. Native Kotlin / Jetpack Compose Android application package.
+2. Native Kotlin / Jetpack Compose Android application package (`com.lootly.app`).
 
 ### Architecture Structure
 
@@ -176,9 +179,9 @@ The following permissions are declared in `app/src/main/AndroidManifest.xml` and
    - Pure-Go Android DNS resolver (`internal/androidnet/dns_android.go`) bypassing Android's lack of `/etc/resolv.conf`, with Cloudflare DoH (`1.1.1.1`) and system DNS fallback (for when local VPN firewalls like AdGuard block `spade.twitch.tv`).
    - Android 14+ Conscrypt system CA certificate discovery (`SSL_CERT_DIR`).
    - Headless WebView Client-Integrity bridge HTTP client (`internal/auth/`, `internal/gql/`).
-   - Multi-level badge scraper and daily 60m watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`).
+   - Multi-level badge scraper, dynamic step duration resolver, and daily watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`).
    - Real-time minute watcher and live progress calculation in embedded analytics server (`/api/streamers`).
-   - Dynamic POSIX and loopback HTTP control API (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`).
+   - Dynamic POSIX and loopback HTTP control API (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`, `POST /api/control/pin-badge`).
    - Exclusion of desktop Cgo/X11 systray dependencies for pure Go Android ARM64 compilation.
 
 ---
