@@ -81,3 +81,110 @@ twitch-badge-miner-android/
 │       ├── jniLibs/arm64-v8a/      # Destination for libtwitchminer.so
 │       └── res/                    # Adaptive icons, layouts, themes, strings
 └── .github/workflows/build-apk.yml # Automated GitHub Actions cloud CI build
+```
+
+### Building the Native Go Engine for Android ARM64
+
+To compile the Go engine without desktop dependencies for Android userspace:
+
+```bash
+cd go-miner
+GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build \
+  -trimpath \
+  -ldflags="-s -w" \
+  -o ../app/src/main/jniLibs/arm64-v8a/libtwitchminer.so \
+  ./cmd/twitch-miner-go
+```
+
+The output file `libtwitchminer.so` is packaged into the APK's `lib/arm64-v8a/` folder and extracted by Android at install time into the app's private `nativeLibraryDir` with executable permissions.
+
+### Building the Android APK (Local)
+
+Requirements:
+- Android SDK (API 35 platforms, build-tools `35.0.0` or `34.0.0`)
+- Java 17 or 21 (JDK)
+- Android `aapt2` binary
+
+Execute:
+```bash
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
+```
+
+Output APK location:
+`app/build/outputs/apk/debug/app-debug.apk`
+
+### Cloud Builds via GitHub Actions
+
+This repository includes a CI workflow at `.github/workflows/build-apk.yml`:
+1. Push code to your GitHub repository (`main` branch).
+2. Go to the **Actions** tab on GitHub.
+3. The **Build Android APK** workflow runs on `ubuntu-latest` runners.
+4. It sets up Go and Android SDK 35, runs all Go and Kotlin unit tests, cross-compiles the ARM64 engine, assembles the debug APK, and uploads it under **Artifacts** as `twitch-badge-miner-debug-apk`.
+
+---
+
+## 3. Android Permissions & Justification
+
+The following permissions are declared in `app/src/main/AndroidManifest.xml` and requested at runtime:
+
+1. **`android.permission.INTERNET`:**
+   - Required to communicate with Twitch GraphQL APIs, stream playlists, segment servers, loopback integrity bridge, and load badge icons via Coil.
+
+2. **`android.permission.ACCESS_NETWORK_STATE`:**
+   - Monitors Wi-Fi and cellular connectivity state to pause or resume network operations when the phone connects or disconnects.
+
+3. **`android.permission.FOREGROUND_SERVICE` & `android.permission.FOREGROUND_SERVICE_DATA_SYNC`:**
+   - Required on Android 9+ (API 28) and Android 14+ (API 34) to run `MinerForegroundService` as an ongoing background service with type `dataSync`, preventing the OS from terminating the engine while the screen is off or the app is minimized.
+
+4. **`android.permission.POST_NOTIFICATIONS`:**
+   - Required on Android 13+ (API 33) to display the ongoing foreground service notification (showing farming percentage, badge name, ETA, and Pause/Resume/Stop actions) and to alert when a badge has been claimed.
+
+5. **`android.permission.WAKE_LOCK`:**
+   - Acquires a partial wake lock (`PARTIAL_WAKE_LOCK`) while an eligible badge is actively being mined so the CPU stays awake to send watch heartbeats while the screen is locked. Automatically released when 0 badges remain (Zero-Battery Standby).
+
+6. **`android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`:**
+   - Prompts the user to exempt Lootly from OEM background battery restrictions (Doze mode, App Standby Buckets) to prevent background suspension.
+
+7. **`android.permission.PACKAGE_USAGE_STATS`:**
+   - Special system access required by `AppUsageMonitor` to detect when the official Twitch app (`tv.twitch.android.app`) is active in the foreground so Auto-Pause can pause heartbeats and avoid concurrent stream watch conflicts.
+
+---
+
+## 4. Security & Privacy
+
+- **No Third-Party Analytics:** Zero tracking SDKs, telemetry, Firebase, or advertising trackers.
+- **Credentials Isolated:** Login tokens are stored inside Android Keystore `EncryptedSharedPreferences` on the device, with no plaintext tokens on disk or shared storage.
+- **Local Loopback Communication:** All IPC between the Kotlin UI/Service and the Go engine runs over `127.0.0.1` HTTP sockets protected by session-scoped secret tokens.
+- **Standard Sandboxing:** Operates within the standard Android application sandbox without requiring root or Shizuku privileges.
+
+---
+
+## 5. Upstream Repositories & Attribution
+
+1. **Upstream Go Mining Engine:**
+   - **Repository:** https://github.com/Guliveer/twitch-miner-go
+   - **Upstream Author:** Guliveer
+   - **Upstream Commit Vendored:** `e98e7d639a9397a01d2a245ed35df489ff61c3ed`
+   - **Upstream License:** GNU General Public License v3.0 (GPL-3.0)
+
+2. **Upstream Global Badge Catalog Data:**
+   - **Source:** https://www.streamdatabase.com/twitch/global-badges
+   - StreamDatabase Twitch Global Badges index for scraping newly deployed badge campaigns.
+
+3. **Android-Specific Upstream Enhancements Added:**
+   - Pure-Go Android DNS resolver (`internal/androidnet/dns_android.go`) bypassing Android's lack of `/etc/resolv.conf`, with Cloudflare DoH (`1.1.1.1`) and system DNS fallback (for when local VPN firewalls like AdGuard block `spade.twitch.tv`).
+   - Android 14+ Conscrypt system CA certificate discovery (`SSL_CERT_DIR`).
+   - Headless WebView Client-Integrity bridge HTTP client (`internal/auth/`, `internal/gql/`).
+   - Multi-level badge scraper and daily 60m watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`).
+   - Real-time minute watcher and live progress calculation in embedded analytics server (`/api/streamers`).
+   - Dynamic POSIX and loopback HTTP control API (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`).
+   - Exclusion of desktop Cgo/X11 systray dependencies for pure Go Android ARM64 compilation.
+
+---
+
+## 6. License
+
+Lootly and its vendored engine are licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+
+Full text of the GNU General Public License v3.0 is preserved in `go-miner/LICENSE.txt`. Anyone redistributing or modifying this software must provide source code under the terms of the GPL-3.0.
