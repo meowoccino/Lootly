@@ -6,7 +6,10 @@
 
 ## 1. Project Overview & Features
 
-Lootly (`com.lootly.app`, v0.3) is a native Kotlin Android application (Min SDK 26, Target SDK 35, ARM64-v8a, Jetpack Compose Material 3 dark UI) for automated Twitch watch-time badge farming with zero manual token handling and minimal background data usage.
+Lootly (`com.lootly.app`, v0.3) is a native Kotlin Android application with a Jetpack Compose Material 3 dark UI for automated Twitch watch-time badge farming with zero manual token handling and minimal background data usage.
+
+- **Architecture:** `arm64-v8a` only (virtually all modern Android phones).
+- **Android versions:** **Android 8.0+ (API 26)** minimum, targeting **Android 15 (API 35)** — fully compatible with **Android 16 and 17**.
 
 ### Key Capabilities & Features
 
@@ -44,7 +47,7 @@ Lootly (`com.lootly.app`, v0.3) is a native Kotlin Android application (Min SDK 
    - Resumes mining automatically when you exit the official Twitch app (toggleable in settings).
 
 7. **Resilient Foreground Service & Zero-Battery Standby:**
-   - `MinerForegroundService` runs under Android's Foreground Service type `DATA_SYNC` (`START_STICKY`) with partial WakeLock.
+   - `MinerForegroundService` runs under Android's Foreground Service type `DATA_SYNC` (`START_STICKY`) with partial WakeLock, cleanly handling Android 15/16+'s 6-hour rolling `dataSync` foreground service limit via `onTimeout()`.
    - Displays an ongoing Android notification with badge progress, percentage, ETA, and Pause/Resume/Stop actions.
    - Enters Zero-Battery Standby mode when 0 eligible badges remain in the catalog, releasing the partial WakeLock until the next catalog scan.
 
@@ -137,7 +140,7 @@ The following permissions are declared in `app/src/main/AndroidManifest.xml` and
    - Monitors Wi-Fi and cellular connectivity state to pause or resume network operations when the phone connects or disconnects.
 
 3. **`android.permission.FOREGROUND_SERVICE` & `android.permission.FOREGROUND_SERVICE_DATA_SYNC`:**
-   - Required on Android 9+ (API 28) and Android 14+ (API 34) to run `MinerForegroundService` as an ongoing background service with type `dataSync`, preventing the OS from terminating the engine while the screen is off or the app is minimized.
+   - Required on Android 9+ (API 28) and Android 14+ (API 34) to run `MinerForegroundService` as an ongoing background service with type `dataSync`, preventing the OS from terminating the engine while the screen is off or the app is minimized (and gracefully handling Android 15/16+'s 6-hour rolling `dataSync` timeout limit via `onTimeout()`).
 
 4. **`android.permission.POST_NOTIFICATIONS`:**
    - Required on Android 13+ (API 33) to display the ongoing foreground service notification (showing farming percentage, badge name, ETA, and Pause/Resume/Stop actions) and to alert when a badge has been claimed.
