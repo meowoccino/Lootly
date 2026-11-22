@@ -9,7 +9,7 @@
 Lootly (`com.lootly.app`) is a native Kotlin Android app (Jetpack Compose Material 3 dark UI) for automated Twitch watch-time badge farming with zero manual token setup and minimal background data usage.
 
 - **Architecture:** `arm64-v8a`
-- **Android versions:** Android 8.0–17 (minSdk 26, targetSdk 35)
+- **Android versions:** Android 8.0 – 17 (minSdk 26, targetSdk 35)
 
 ### Features
 
