@@ -6,7 +6,7 @@
 
 ## 1. Project Overview & Features
 
-Lootly (`com.lootly.app`, v0.3) is a native Kotlin Android application with a Jetpack Compose Material 3 dark UI for automated Twitch watch-time badge farming with zero manual token handling and minimal background data usage.
+Lootly (`com.lootly.app`) is a native Kotlin Android application with a Jetpack Compose Material 3 dark UI for automated Twitch watch-time badge farming with zero manual token handling and minimal background data usage.
 
 - **Architecture:** `arm64-v8a` only (virtually all modern Android phones).
 - **Android versions:** **Android 8.0+ (API 26)** minimum, targeting **Android 15 (API 35)** — fully compatible with **Android 16 and 17**.
