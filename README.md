@@ -1,4 +1,4 @@
-*Twitch Watch-Time Badge Miner for Android**
+**Twitch Watch-Time Badge Miner for Android**
 
 > **Disclaimer:** Lootly is an independent, open-source project and is not affiliated with, endorsed, or sponsored by Twitch Interactive, Inc. or StreamDatabase. Automating watch-time or interacting with Twitch's internal APIs falls outside Twitch's official Terms of Service—while single-stream watch-time clients rarely face enforcement, use this software at your own discretion and risk.
 
