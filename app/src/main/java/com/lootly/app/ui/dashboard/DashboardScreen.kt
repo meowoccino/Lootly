@@ -86,7 +86,7 @@ fun DashboardScreen(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Clean Top Bar: Lootly icon + "Lootly" on left; Avatar + Master Switch on right
+            // Top Bar #4: Circular avatar + username on left; Master Switch on right
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -96,26 +96,17 @@ fun DashboardScreen(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher_fg_custom),
-                        contentDescription = "Lootly",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(34.dp)
-                    )
-                    Text(
-                        text = "Lootly",
-                        color = MinerColors.TextPrimary,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.3).sp
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable {
+                            if (session != null) {
+                                showLogoutDialog = true
+                            } else {
+                                onLoginClick()
+                            }
+                        }
+                        .padding(end = 8.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -126,14 +117,7 @@ fun DashboardScreen(
                                 width = 2.dp,
                                 color = if (session != null) MinerColors.TwitchViolet else MinerColors.HairlineBright,
                                 shape = CircleShape
-                            )
-                            .clickable {
-                                if (session != null) {
-                                    showLogoutDialog = true
-                                } else {
-                                    onLoginClick()
-                                }
-                            },
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         val avatarUrl = session?.avatarUrl
@@ -163,25 +147,33 @@ fun DashboardScreen(
                         }
                     }
 
-                    Switch(
-                        checked = uiState.minerStatus.runState.isServiceActive,
-                        onCheckedChange = { enabled ->
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            if (session == null && enabled) {
-                                onLoginClick()
-                            } else {
-                                onMasterToggle(enabled)
-                            }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MinerColors.Ground,
-                            checkedTrackColor = MinerColors.TwitchViolet,
-                            uncheckedThumbColor = MinerColors.TextSecondary,
-                            uncheckedTrackColor = MinerColors.Hairline,
-                            uncheckedBorderColor = MinerColors.Hairline
-                        )
+                    Text(
+                        text = session?.effectiveDisplayName ?: "Sign In",
+                        color = MinerColors.TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.2).sp
                     )
                 }
+
+                Switch(
+                    checked = uiState.minerStatus.runState.isServiceActive,
+                    onCheckedChange = { enabled ->
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        if (session == null && enabled) {
+                            onLoginClick()
+                        } else {
+                            onMasterToggle(enabled)
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MinerColors.Ground,
+                        checkedTrackColor = MinerColors.TwitchViolet,
+                        uncheckedThumbColor = MinerColors.TextSecondary,
+                        uncheckedTrackColor = MinerColors.Hairline,
+                        uncheckedBorderColor = MinerColors.Hairline
+                    )
+                )
             }
 
             if (!uiState.permissionHealth.allHealthy) {

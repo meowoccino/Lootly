@@ -192,39 +192,44 @@ fun LiveMinerConsoleCard(
                             }
                         } else {
                             items(logs, key = { it.id }) { entry ->
-                                val (tag, tagColor) = when (entry.level) {
-                                    LogLevel.ERROR -> "ERR" to MinerColors.DangerRed
-                                    LogLevel.WARN -> "WRN" to MinerColors.WarningAmber
-                                    LogLevel.EVENT -> "DRP" to MinerColors.LiveMint
-                                    LogLevel.INFO -> "INF" to MinerColors.InfoCyan
-                                    LogLevel.DEBUG -> "DBG" to MinerColors.TextMuted
-                                }
                                 val msgColor = when (entry.level) {
                                     LogLevel.ERROR -> MinerColors.DangerRed
                                     LogLevel.WARN -> MinerColors.WarningAmber
                                     LogLevel.EVENT -> MinerColors.TextPrimary
                                     else -> MinerColors.TextSecondary
                                 }
-                                Text(
-                                    text = buildAnnotatedString {
-                                        withStyle(SpanStyle(color = MinerColors.TextMuted)) {
-                                            append(entry.timestamp)
-                                            append(" ")
-                                        }
-                                        withStyle(SpanStyle(color = tagColor, fontWeight = FontWeight.SemiBold)) {
-                                            append(tag)
-                                            append(" ")
-                                        }
-                                        withStyle(SpanStyle(color = msgColor)) {
-                                            append(entry.message)
-                                        }
-                                    },
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    lineHeight = 16.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                val hhmm = entry.timestamp.take(5)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = buildAnnotatedString {
+                                            withStyle(SpanStyle(color = MinerColors.TwitchViolet, fontWeight = FontWeight.Bold)) {
+                                                append("> ")
+                                            }
+                                            withStyle(SpanStyle(color = msgColor)) {
+                                                append(entry.message)
+                                            }
+                                        },
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                        lineHeight = 16.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = hhmm,
+                                        color = androidx.compose.ui.graphics.Color(0xFF565A6E),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 10.sp,
+                                        lineHeight = 16.sp,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
