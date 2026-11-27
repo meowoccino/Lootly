@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material3.Icon
@@ -87,16 +89,9 @@ fun LiveMinerConsoleCard(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Terminal,
-                    contentDescription = null,
+                    contentDescription = "Console",
                     modifier = Modifier.size(18.dp),
                     tint = MinerColors.TwitchVioletGlow
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Live Console",
-                    color = MinerColors.TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Surface(
@@ -155,6 +150,18 @@ fun LiveMinerConsoleCard(
                             tint = MinerColors.TextSecondary
                         )
                     }
+                }
+                Spacer(modifier = Modifier.width(2.dp))
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = if (expanded) "Collapse console" else "Expand console",
+                        modifier = Modifier.size(20.dp),
+                        tint = MinerColors.TextSecondary
+                    )
                 }
             }
 
