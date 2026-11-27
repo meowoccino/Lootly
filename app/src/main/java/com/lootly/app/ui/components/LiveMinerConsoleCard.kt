@@ -195,26 +195,40 @@ fun LiveMinerConsoleCard(
                                     LogLevel.INFO -> "INF" to Color(0xFF56CCF2)
                                     LogLevel.DEBUG -> "DBG" to MinerColors.TextMuted
                                 }
-                                Text(
-                                    text = buildAnnotatedString {
-                                        withStyle(SpanStyle(color = Color(0xFF565A6E))) {
-                                            append(entry.timestamp)
-                                            append(" ")
-                                        }
-                                        withStyle(SpanStyle(color = tagColor, fontWeight = FontWeight.SemiBold)) {
-                                            append(tag)
-                                            append(" ")
-                                        }
-                                        withStyle(SpanStyle(color = Color(0xFFD4D7E3))) {
-                                            append(entry.message)
-                                        }
-                                    },
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    lineHeight = 16.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = entry.timestamp,
+                                        color = Color(0xFF565A6E),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                        lineHeight = 16.sp,
+                                        maxLines = 1,
+                                        modifier = Modifier.width(58.dp)
+                                    )
+                                    Text(
+                                        text = tag,
+                                        color = tagColor,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                        lineHeight = 16.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        modifier = Modifier.width(30.dp)
+                                    )
+                                    Text(
+                                        text = entry.message,
+                                        color = Color(0xFFD4D7E3),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                        lineHeight = 16.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
                     }

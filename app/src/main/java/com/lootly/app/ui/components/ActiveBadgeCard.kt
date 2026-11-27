@@ -278,8 +278,9 @@ fun ActiveBadgeCard(
                     )
                 ) {
                     Box(contentAlignment = Alignment.Center) {
+                        val eligibleCount = maxOf(sortedEligible.size, snapshot.eligibleCampaignCount)
                         Text(
-                            text = "${sortedEligible.size} Eligible",
+                            text = "$eligibleCount Eligible",
                             color = MinerColors.TextPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
