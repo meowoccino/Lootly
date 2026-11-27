@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material3.Icon
@@ -158,13 +156,6 @@ fun LiveMinerConsoleCard(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(2.dp))
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = if (expanded) "Collapse console" else "Expand console",
-                    modifier = Modifier.size(20.dp),
-                    tint = MinerColors.TextSecondary
-                )
             }
 
             AnimatedVisibility(visible = expanded) {
