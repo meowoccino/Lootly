@@ -1,0 +1,241 @@
+package model
+
+import (
+	"fmt"
+	"time"
+)
+
+// Stream represents the current state of a live broadcast.
+type Stream struct {
+	BroadcastID string `json:"broadcast_id,omitempty"`
+
+	Title string    `json:"title,omitempty"`
+	Game  *GameInfo `json:"game,omitempty"`
+	Tags  []Tag     `json:"tags,omitempty"`
+
+	HasDropsTag bool       `json:"drops_tags"`
+	Campaigns   []Campaign `json:"campaigns,omitempty"`
+	CampaignIDs []string   `json:"campaign_ids,omitempty"`
+
+	ViewersCount int `json:"viewers_count"`
+
+	SpadeURL string         `json:"spade_url,omitempty"`
+	Payload  map[string]any `json:"payload,omitempty"`
+
+	IsWatchStreakMissing bool    `json:"watch_streak_missing"`
+	MinuteWatched        float64 `json:"minute_watched"`
+
+	// LastMinuteCreditedAt is when Twitch last accepted a minute-watched event
+	// (spade 200/204). Acceptance is not credit: Twitch can acknowledge an
+	// event it does not count, so drop progress is the authoritative signal.
+	LastMinuteCreditedAt  time.Time `json:"last_minute_credited_at,omitempty"`
+	LastMinuteAttemptedAt time.Time `json:"last_minute_attempted_at,omitempty"`
+	StalledCooldownUntil  time.Time `json:"stalled_cooldown_until,omitempty"`
+
+	lastUpdate             time.Time
+	minuteWatchedTimestamp time.Time
+	dropCredit             map[string]dropCreditSample
+}
+
+// dropCreditSample records the last seen progress of a drop so that stall
+// detection can tell a frozen watch credit from a drop that is complete.
+type dropCreditSample struct {
+	minutes int
+	at      time.Time
+}
+
+// GameInfo holds game/category metadata from the Twitch API.
+type GameInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	Slug        string `json:"slug,omitempty"`
+}
+
+// Tag represents a stream tag.
+type Tag struct {
+	ID            string `json:"id"`
+	LocalizedName string `json:"localizedName"`
+}
+
+// NewStream creates a new Stream with default values.
+func NewStream() *Stream {
+	stream := &Stream{
+		Tags:        make([]Tag, 0),
+		Campaigns:   make([]Campaign, 0),
+		CampaignIDs: make([]string, 0),
+	}
+	stream.InitWatchStreak()
+	return stream
+}
+
+// Update refreshes the stream information with new data.
+func (s *Stream) Update(broadcastID, title string, game *GameInfo, tags []Tag, viewersCount int, dropID string) {
+	s.BroadcastID = broadcastID
+	s.Title = title
+	s.Game = game
+	if tags != nil {
+		s.Tags = tags
+	} else {
+		s.Tags = make([]Tag, 0)
+	}
+	s.ViewersCount = viewersCount
+
+	s.HasDropsTag = false
+	if s.Game != nil {
+		for _, tag := range s.Tags {
+			if tag.ID == dropID {
+				s.HasDropsTag = true
+				break
+			}
+		}
+	}
+
+	s.lastUpdate = time.Now()
+}
+
+// GameName returns the game's internal name, or empty string if no game is set.
+func (s *Stream) GameName() string {
+	if s.Game == nil {
+		return ""
+	}
+	return s.Game.Name
+}
+
+// GameDisplayName returns the game's display name, or empty string if no game is set.
+func (s *Stream) GameDisplayName() string {
+	if s.Game == nil {
+		return ""
+	}
+	return s.Game.DisplayName
+}
+
+// GameID returns the game's ID, or empty string if no game is set.
+func (s *Stream) GameID() string {
+	if s.Game == nil {
+		return ""
+	}
+	return s.Game.ID
+}
+
+// GameSlug returns the game's URL-friendly slug from the Twitch API.
+// It checks the direct API field first, then falls back to the global
+// game slug registry (populated by the category watcher). No string
+// normalization is performed — slugs must come from the Twitch API.
+func (s *Stream) GameSlug() string {
+	if s == nil || s.Game == nil {
+		return ""
+	}
+	if s.Game.Slug != "" {
+		return s.Game.Slug
+	}
+	if s.Game.ID != "" {
+		if slug := LookupGameSlug(s.Game.ID); slug != "" {
+			return slug
+		}
+	}
+	return ""
+}
+
+// UpdateRequired returns true if the stream info needs refreshing (>= 120s since last update).
+func (s *Stream) UpdateRequired() bool {
+	return s.lastUpdate.IsZero() || time.Since(s.lastUpdate) >= 120*time.Second
+}
+
+// MarkUpdated sets lastUpdate to the current time without changing other fields.
+// This is useful when a stream is discovered via an external source (e.g. category
+// watcher) and we want to prevent UpdateRequired() from immediately returning true.
+func (s *Stream) MarkUpdated() {
+	s.lastUpdate = time.Now()
+}
+
+// UpdateElapsed returns the duration since the last stream info update.
+func (s *Stream) UpdateElapsed() time.Duration {
+	if s.lastUpdate.IsZero() {
+		return 0
+	}
+	return time.Since(s.lastUpdate)
+}
+
+// InitWatchStreak resets the watch streak tracking state.
+func (s *Stream) InitWatchStreak() {
+	s.IsWatchStreakMissing = true
+	s.MinuteWatched = 0
+	s.minuteWatchedTimestamp = time.Time{}
+}
+
+// MaxWatchSegmentGap bounds the gap that still counts as continuous watching.
+// Successful minute-watched events are one watcher tick apart; anything much
+// larger means the channel was not being watched at all.
+const MaxWatchSegmentGap = 2 * time.Minute
+
+// MarkMinuteWatchAttempt records that a minute-watched event was sent for this
+// stream, whether or not Twitch credited it. Stall detection needs to tell
+// "we are watching and Twitch stopped counting" from "we stopped watching".
+func (s *Stream) MarkMinuteWatchAttempt() {
+	now := time.Now()
+	// A new watch segment starts from scratch: progress that stood still while
+	// the channel was not being watched says nothing about its credit.
+	if !s.LastMinuteAttemptedAt.IsZero() && now.Sub(s.LastMinuteAttemptedAt) > MaxWatchSegmentGap {
+		s.dropCredit = nil
+	}
+	s.LastMinuteAttemptedAt = now
+}
+
+// ObserveDropCredit records the current progress of a drop and reports how long
+// that progress has been standing still. The first observation only establishes
+// a baseline, and any change starts a new stretch.
+func (s *Stream) ObserveDropCredit(dropID string, minutes int, now time.Time) time.Duration {
+	if s.dropCredit == nil {
+		s.dropCredit = make(map[string]dropCreditSample)
+	}
+	sample, seen := s.dropCredit[dropID]
+	if !seen || sample.minutes != minutes {
+		s.dropCredit[dropID] = dropCreditSample{minutes: minutes, at: now}
+		return 0
+	}
+	return now.Sub(sample.at)
+}
+
+// UpdateMinuteWatched increments the minute-watched counter based on elapsed time.
+//
+// Only time actually spent watching is counted. The watch set rotates, so a
+// channel can sit unwatched for a long stretch; charging that gap to the
+// channel would push it past its streak window and retire it from the rotation
+// without it ever having been watched for that long.
+func (s *Stream) UpdateMinuteWatched() {
+	now := time.Now()
+	if !s.minuteWatchedTimestamp.IsZero() {
+		elapsed := now.Sub(s.minuteWatchedTimestamp)
+		if elapsed <= MaxWatchSegmentGap {
+			s.MinuteWatched += elapsed.Minutes()
+		}
+	}
+	s.minuteWatchedTimestamp = now
+	s.LastMinuteCreditedAt = now
+}
+
+// IsMinuteWatchStalled reports that Twitch has stopped crediting a stream we
+// are still sending events for.
+//
+// It deliberately says nothing about a channel we are not currently watching:
+// the watch set rotates, and treating a rotated-out channel as frozen would put
+// it into a cooldown that keeps it out of selection long after it was dropped.
+func (s *Stream) IsMinuteWatchStalled(threshold time.Duration) bool {
+	if s.LastMinuteCreditedAt.IsZero() || s.LastMinuteAttemptedAt.IsZero() {
+		return false
+	}
+	if time.Since(s.LastMinuteAttemptedAt) > threshold {
+		return false
+	}
+	return time.Since(s.LastMinuteCreditedAt) > threshold
+}
+
+// String returns a human-readable representation of the stream.
+func (s *Stream) String() string {
+	gameName := ""
+	if s.Game != nil {
+		gameName = s.Game.DisplayName
+	}
+	return fmt.Sprintf("Stream(title=%s, game=%s, viewers=%d)", s.Title, gameName, s.ViewersCount)
+}

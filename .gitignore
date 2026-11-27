@@ -1,0 +1,22 @@
+# Gradle & Android
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+captures/
+.cxx/
+.externalNativeBuild/
+
+# Native compiled binary (built by CI or locally)
+app/src/main/jniLibs/arm64-v8a/libtwitchminer.so
+
+# Signing keystores & secrets
+*.jks
+*.keystore
+signing-credentials.txt
+
+# OS / misc
+.DS_Store
+Thumbs.db

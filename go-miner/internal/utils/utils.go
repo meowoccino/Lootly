@@ -1,0 +1,124 @@
+// Package utils provides general-purpose utility functions for the Twitch miner,
+// including number formatting and text slugification.
+package utils
+
+import (
+	"fmt"
+	"math"
+	"os"
+	"os/exec"
+	"regexp"
+	"runtime"
+	"runtime/debug"
+	"strings"
+)
+
+// OpenBrowser opens the given URL in the user's default browser, using the
+// platform-native command. It is best-effort: errors are returned but the
+// caller usually logs and continues.
+func OpenBrowser(url string) error {
+	var cmd string
+	var args []string
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start", "", url}
+	case "darwin":
+		cmd = "open"
+		args = []string{url}
+	default:
+		cmd = "xdg-open"
+		args = []string{url}
+	}
+	return exec.Command(cmd, args...).Start()
+}
+
+// SafeGo launches a goroutine with panic recovery. If the goroutine panics,
+// the panic is caught, a stack trace is printed to stderr, and execution
+// continues without crashing the process.
+func SafeGo(fn func()) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Fprintf(os.Stderr, "panic recovered in goroutine: %v\n%s\n", r, debug.Stack())
+			}
+		}()
+		fn()
+	}()
+}
+
+var slugifyNonAlnum = regexp.MustCompile(`[^a-z0-9-]+`)
+
+var slugifyMultiHyphen = regexp.MustCompile(`-{2,}`)
+
+// Slugify converts a display name to a URL-friendly slug.
+// For example: "Tom Clancy's Rainbow Six Siege" → "tom-clancys-rainbow-six-siege".
+func Slugify(name string) string {
+	s := strings.ToLower(name)
+	s = strings.ReplaceAll(s, "'", "")
+	s = strings.ReplaceAll(s, "\u2019", "") // right single quotation mark '
+	s = strings.ReplaceAll(s, "\u2018", "") // left single quotation mark '
+	s = slugifyNonAlnum.ReplaceAllString(s, "-")
+	s = slugifyMultiHyphen.ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	return s
+}
+
+// Millify converts a number to a human-readable string with SI suffixes.
+// For example: 1000 -> "1K", 1500000 -> "1.5M".
+func Millify(n int, precision int) string {
+	if precision < 0 {
+		precision = 2
+	}
+
+	abs := math.Abs(float64(n))
+	sign := ""
+	if n < 0 {
+		sign = "-"
+	}
+
+	suffixes := []struct {
+		threshold float64
+		suffix    string
+	}{
+		{1e15, "Q"},
+		{1e12, "T"},
+		{1e9, "B"},
+		{1e6, "M"},
+		{1e3, "K"},
+	}
+
+	for _, s := range suffixes {
+		if abs >= s.threshold {
+			val := abs / s.threshold
+			formatted := formatFloat(val, precision)
+			return sign + formatted + s.suffix
+		}
+	}
+
+	return fmt.Sprintf("%d", n)
+}
+
+func formatFloat(f float64, precision int) string {
+	s := fmt.Sprintf("%.*f", precision, f)
+	if strings.Contains(s, ".") {
+		s = strings.TrimRight(s, "0")
+		s = strings.TrimRight(s, ".")
+	}
+	return s
+}
+
+// Percentage calculates the integer percentage of a/b.
+// Returns 0 if a or b is 0.
+func Percentage(a, b int) int {
+	if a == 0 || b == 0 {
+		return 0
+	}
+	return int((float64(a) / float64(b)) * 100)
+}
+
+// FloatRound rounds a float to the specified number of decimal places.
+func FloatRound(number float64, ndigits int) float64 {
+	pow := math.Pow(10, float64(ndigits))
+	return math.Round(number*pow) / pow
+}

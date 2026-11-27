@@ -1,0 +1,136 @@
+enabled: true
+features:
+  claim_drops_startup: true
+  enable_analytics: true
+max_watch_streams: 999
+priority:
+  - DROPS
+  - ORDER
+  - STREAK
+category_watcher:
+  enabled: true
+  poll_interval: 3m0s
+  drops_only: true
+  categories:
+    - slug: tom-clancys-rainbow-six-siege
+      drops_only: false
+    - slug: battlefield-6
+    - slug: valorant
+    - slug: star-citizen
+    - slug: the-finals
+    - slug: destiny-2
+    - slug: arc-raiders
+    - slug: call-of-duty-warzone
+    - slug: delta-force-hawk-ops
+    - slug: trove
+    - slug: pubg-battlegrounds
+    - slug: war-thunder
+    - slug: minecraft
+    - slug: rocket-league
+    - slug: special-events
+    - slug: world-of-tanks
+    - slug: world-of-warships
+team_watcher:
+  enabled: true
+  poll_interval: 3m0s
+  teams:
+    - name: rainbow6
+streamer_defaults:
+  make_predictions: false
+  follow_raid: true
+  claim_drops: true
+  claim_moments: true
+  watch_streak: true
+  community_goals: false
+  drops_only: false
+  chat: ONLINE
+  bet:
+    strategy: SMART
+    percentage: 5
+    percentage_gap: 20
+    max_points: 50000
+    minimum_points: 20000
+    stealth_mode: true
+    delay: 6
+    delay_mode: FROM_END
+    filter_condition:
+      by: total_users
+      where: GTE
+      value: 0
+streamers:
+  - username: Guliveer_
+    settings:
+      drops_only: false
+  - username: Battlefield
+  - username: Valorant
+  - username: rainbow6
+  - username: BungieFoundation
+  - username: StarCitizen
+  - username: Pengu
+  - username: KingGeorge
+  - username: AnneMunition
+  - username: zironicdk
+  - username: Interro
+  - username: Shroud
+  - username: Beaulo
+  - username: ElektronCUP
+  - username: izakooo
+  - username: pokimane
+  - username: ohnePixel
+  - username: TenZ
+  - username: Leh_TV
+  - username: Ubisoft
+  - username: Xbox
+  - username: Intel
+  - username: eSportsReadyWT
+  - username: PaladinsGame
+  - username: mowpoluckuv12
+  - username: xQc
+  - username: draegast
+  - username: beingesports
+  - username: Jynxzi
+followers:
+  enabled: false
+  order: ASC
+notifications:
+  telegram:
+    enabled: true
+    events:
+      - DROP_CLAIM
+      - GIFTED_SUB
+      - MINER_STARTED
+      - MINER_STOPPED
+      - MINER_CRASHED
+      - ACCOUNT_CONFIG_RELOADED
+    disable_notification: true
+    batch:
+      enabled: false
+      max_entries: 5
+      immediate_events:
+        - GIFTED_SUB
+        - MINER_STARTED
+        - MINER_STOPPED
+        - MINER_CRASHED
+        - ACCOUNT_CONFIG_RELOADED
+        - TEST
+  discord:
+    enabled: false
+  webhook:
+    enabled: false
+    method: POST
+  matrix:
+    enabled: false
+  pushover:
+    enabled: false
+  gotify:
+    enabled: false
+  batch:
+    enabled: true
+    interval: 4h0m0s
+    max_entries: 15
+    immediate_events:
+      - GIFTED_SUB
+      - MINER_STARTED
+      - MINER_STOPPED
+      - MINER_CRASHED
+      - ACCOUNT_CONFIG_RELOADED

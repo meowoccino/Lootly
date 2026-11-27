@@ -1,0 +1,427 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        description: "Dry run - build only, skip commit/tag/release"
+        required: false
+        type: boolean
+        default: false
+      version:
+        description: "Version to release as MAJOR.MINOR.PATCH, higher than the latest tag (leave empty to auto-detect from commits)"
+        required: false
+        type: string
+    outputs:
+      new_version:
+        description: "New version string"
+        value: ${{ jobs.bump-version.outputs.new_version }}
+      current_version:
+        description: "Released version the bump starts from"
+        value: ${{ jobs.resolve-version.outputs.base }}
+      tagged:
+        description: "'true' when this run created a tag and a GitHub Release"
+        value: ${{ jobs.bump-version.outputs.tagged }}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run - build only, skip commit/tag/release"
+        required: false
+        type: boolean
+        default: false
+      version:
+        description: "Version to release as MAJOR.MINOR.PATCH, higher than the latest tag (leave empty to auto-detect from commits)"
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+
+concurrency:
+  # Main pushes share one group so version bump/tag/release never race;
+  # PR dry-runs get their own group per ref and run in parallel.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-version:
+    # The bump rules live in the reusable Version workflow, which the
+    # pull-request check calls too, so the check and the release always agree.
+    uses: ./.github/workflows/version.yml
+    with:
+      # Resolve from main as it is once this run actually starts. A queued run
+      # that resolved from the commit which triggered it would count a release
+      # another merge already produced as still missing.
+      ref: ${{ !inputs.dry_run && 'main' || '' }}
+      pr_title: ${{ github.event.pull_request.title }}
+
+  bump-version:
+    needs: [resolve-version]
+    # Also runs when the merge warrants no version bump: VERSION on main still
+    # has to be restored to the released version, only the tag is skipped.
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      tagged: ${{ steps.bump.outputs.tagged }}
+    steps:
+      - name: Checkout code (dry-run)
+        if: inputs.dry_run
+        uses: actions/checkout@v4
+
+      - name: Checkout code (release)
+        if: ${{ !inputs.dry_run }}
+        uses: actions/checkout@v4
+        with:
+          # Work on main as it is now, not on the commit that triggered the
+          # run: when two merges land together, the run that starts second
+          # would otherwise build its VERSION commit on a base main has already
+          # moved past, and its push and tag would be rejected as
+          # non-fast-forward. Runs are serialized by the concurrency group.
+          ref: main
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - name: Configure git
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute new version
+        id: bump
+        env:
+          BASE: ${{ needs.resolve-version.outputs.base }}
+          BUMP: ${{ needs.resolve-version.outputs.bump }}
+          EXPECTED: ${{ needs.resolve-version.outputs.expected }}
+        run: |
+          set -euo pipefail
+
+          EXPLICIT=false
+          # The computed version wins over whatever the merged branch carried.
+          if [ -n "${{ inputs.version }}" ]; then
+            NEW_VERSION="${{ inputs.version }}"
+            TAGGED=true
+            EXPLICIT=true
+          elif [ "$BUMP" = "skip" ]; then
+            NEW_VERSION="$BASE"
+            TAGGED=false
+          else
+            NEW_VERSION="$EXPECTED"
+            TAGGED=true
+          fi
+
+          # A hand-written version becomes the tag name, the VERSION file and
+          # the base every later release is computed from, so it is validated
+          # before anything is written. A malformed value would break the next
+          # base, and a value that does not advance would tag over a released
+          # version.
+          if [ "$EXPLICIT" = "true" ]; then
+            if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::version '${NEW_VERSION}' is not MAJOR.MINOR.PATCH."
+              exit 1
+            fi
+
+            HIGHEST=$(printf '%s\n%s\n' "$BASE" "$NEW_VERSION" | sort -V | tail -n1)
+            if [ "$NEW_VERSION" = "$BASE" ] || [ "$HIGHEST" != "$NEW_VERSION" ]; then
+              echo "::error::version '${NEW_VERSION}' must be higher than the current release ${BASE}."
+              exit 1
+            fi
+          fi
+
+          echo "New version: ${NEW_VERSION}"
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+          # An explicit version is always a release, even when the commits since
+          # the last tag would not warrant a bump. A skip merge without one only
+          # restores VERSION.
+          echo "tagged=${TAGGED}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        id: commit
+        if: ${{ !inputs.dry_run }}
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
+          TAGGED: ${{ steps.bump.outputs.tagged }}
+        run: |
+          set -euo pipefail
+
+          # main can move while this run works: a merge pushed between the
+          # checkout and the push rejects it as non-fast-forward. Every attempt
+          # picks main up as it is now and rebuilds the VERSION commit on its
+          # tip, so that release still lands instead of being lost.
+          ATTEMPTS=3
+          ATTEMPT=0
+          SYNCED=false
+          while [ "$ATTEMPT" -lt "$ATTEMPTS" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            git fetch --quiet origin "+main:refs/remotes/origin/main"
+            git reset --quiet --hard origin/main
+
+            # The tag push fails after VERSION was already committed, so an
+            # existing tag would leave main carrying a version nobody released.
+            # A merge that only restores VERSION reuses the released version by
+            # design, so the check applies to runs that create a tag. It is
+            # repeated on every attempt because a release can appear while this
+            # run waits, and tagging it again would duplicate it.
+            if [ "$TAGGED" = "true" ] && git ls-remote --exit-code --tags origin "refs/tags/v${NEW_VERSION}" > /dev/null 2>&1; then
+              echo "::error::Tag v${NEW_VERSION} already exists; release a version that has not been released yet."
+              exit 1
+            fi
+
+            # VERSION on main always has to equal the released version. A pull
+            # request normally sets it, but its value is never trusted: when it
+            # is missing, stale or deliberately wrong it is corrected here, so a
+            # tag can never point at a different version than the file says.
+            if [ "$(cat VERSION)" = "$NEW_VERSION" ]; then
+              echo "VERSION already contains ${NEW_VERSION}; nothing to commit."
+              SYNCED=true
+              break
+            fi
+
+            printf "%s" "$NEW_VERSION" > VERSION
+            git add VERSION
+            git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
+
+            if git push origin "HEAD:refs/heads/main"; then
+              SYNCED=true
+              break
+            fi
+
+            echo "main moved while this run was working; retrying on the new tip (attempt ${ATTEMPT}/${ATTEMPTS})."
+          done
+
+          if [ "$SYNCED" != "true" ]; then
+            echo "::error::Could not commit ${NEW_VERSION} to main after ${ATTEMPTS} attempts: another push kept landing first."
+            exit 1
+          fi
+
+          # A merge that does not warrant a bump only restores VERSION; there is
+          # no new version to tag.
+          if [ "$TAGGED" != "true" ]; then
+            echo "No version bump in this merge; VERSION is ${NEW_VERSION} and no tag is created."
+            exit 0
+          fi
+
+          git tag -a "v${NEW_VERSION}" -m "v${NEW_VERSION}"
+          git push origin "v${NEW_VERSION}"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Bump Version" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Previous: \`v${{ needs.resolve-version.outputs.base }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- New: \`v${{ steps.bump.outputs.new_version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`VERSION\` in the merge: \`${{ needs.resolve-version.outputs.actual }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "- Mode: **DRY RUN** — no commit or tag created" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.commit.outcome }}" != "success" ]; then
+            echo "- ❌ The commit/tag step failed — nothing was tagged and \`main\` was left unchanged" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.bump.outputs.tagged }}" != "true" ]; then
+            echo "- No version bump in this merge — no tag created" >> "$GITHUB_STEP_SUMMARY"
+            if [ "${{ needs.resolve-version.outputs.actual }}" != "${{ steps.bump.outputs.new_version }}" ]; then
+              echo "- Commit: \`VERSION\` restored to \`${{ steps.bump.outputs.new_version }}\`" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "- Tag: \`v${{ steps.bump.outputs.new_version }}\` pushed" >> "$GITHUB_STEP_SUMMARY"
+            if [ "${{ needs.resolve-version.outputs.actual }}" != "${{ steps.bump.outputs.new_version }}" ]; then
+              echo "- Commit: \`VERSION\` corrected to \`${{ steps.bump.outputs.new_version }}\` before tagging" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+  build-binaries:
+    needs: [bump-version]
+    if: ${{ inputs.dry_run || needs.bump-version.outputs.tagged == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ !inputs.dry_run && format('v{0}', needs.bump-version.outputs.new_version) || '' }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Build matrix binaries
+        env:
+          NEW_VERSION: ${{ needs.bump-version.outputs.new_version }}
+        run: |
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          LDFLAGS="-s -w -X github.com/Guliveer/twitch-miner-go/internal/version.Number=${NEW_VERSION} -X github.com/Guliveer/twitch-miner-go/internal/version.GitCommit=${GIT_COMMIT}"
+
+          mkdir -p dist
+
+          # Linux and Windows: tray is pure Go there, so CGO_ENABLED=0 keeps
+          # the binaries fully static. macOS is built in build-darwin-binaries
+          # (fyne.io/systray requires cgo on darwin) on a macOS runner.
+          targets=(
+            "linux/amd64"
+            "linux/arm64"
+            "windows/amd64"
+            "windows/arm64"
+          )
+
+          build_target() {
+            local target="$1"
+            local GOOS="${target%/*}"
+            local GOARCH="${target#*/}"
+            local ext=""
+            [ "$GOOS" = "windows" ] && ext=".exe"
+
+            GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=0 go build \
+              -ldflags "$LDFLAGS" \
+              -o "dist/twitch-miner-go-${GOOS}-${GOARCH}${ext}" \
+              ./cmd/twitch-miner-go &
+
+            GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=0 go build \
+              -ldflags "$LDFLAGS" \
+              -o "dist/config-editor-${GOOS}-${GOARCH}${ext}" \
+              ./cmd/config-editor &
+          }
+
+          for target in "${targets[@]}"; do
+            build_target "$target"
+          done
+
+          wait
+
+          echo "Built binaries:"
+          ls -la dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+          retention-days: 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Build Binaries" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "**DRY RUN** — binaries built but not uploaded to a release" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "| Binary | Size |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|------|" >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/*; do
+            SIZE=$(du -h "$f" | cut -f1)
+            echo "| $(basename $f) | ${SIZE} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  build-darwin-binaries:
+    needs: [bump-version]
+    if: ${{ inputs.dry_run || needs.bump-version.outputs.tagged == 'true' }}
+    runs-on: macos-26
+    strategy:
+      matrix:
+        # darwin/arm64 is native on this arm64 runner; darwin/amd64 is a
+        # cross-cgo build. fyne.io/systray needs cgo (Objective-C/Cocoa) on
+        # macOS, hence CGO_ENABLED=1. Cross-cgo between darwin arches works on
+        # modern Xcode (12.2+) with SDKROOT pointing at the macOS SDK — see
+        # golang/go#44112.
+        include:
+          - { goos: darwin, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ !inputs.dry_run && format('v{0}', needs.bump-version.outputs.new_version) || '' }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Build macOS binaries
+        env:
+          NEW_VERSION: ${{ needs.bump-version.outputs.new_version }}
+        run: |
+          SDKDIR=$(xcrun --sdk macosx --show-sdk-path)
+          export SDKROOT="${SDKDIR}"
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          LDFLAGS="-s -w -X github.com/Guliveer/twitch-miner-go/internal/version.Number=${NEW_VERSION} -X github.com/Guliveer/twitch-miner-go/internal/version.GitCommit=${GIT_COMMIT}"
+
+          GOOS=${{ matrix.goos }}
+          GOARCH=${{ matrix.goarch }}
+          mkdir -p dist
+
+          GOOS=$GOOS GOARCH=$GOARCH go build \
+            -ldflags "$LDFLAGS" \
+            -o "dist/twitch-miner-go-${GOOS}-${GOARCH}" \
+            ./cmd/twitch-miner-go
+
+          GOOS=$GOOS GOARCH=$GOARCH go build \
+            -ldflags "$LDFLAGS" \
+            -o "dist/config-editor-${GOOS}-${GOARCH}" \
+            ./cmd/config-editor
+
+          echo "Built:"
+          ls -la dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-darwin
+          path: dist/
+          retention-days: 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Build Darwin Binaries (${{ matrix.goos }}/${{ matrix.goarch }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "**DRY RUN** — binaries built but not uploaded to a release" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "| Binary | Size |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|------|" >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/*; do
+            SIZE=$(du -h "$f" | cut -f1)
+            echo "| $(basename $f) | ${SIZE} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  create-release:
+    needs: [bump-version, build-binaries, build-darwin-binaries]
+    if: ${{ !inputs.dry_run && needs.bump-version.outputs.tagged == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-darwin
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.bump-version.outputs.new_version }}"
+          generate_release_notes: true
+          files: dist/*
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: \`v${{ needs.bump-version.outputs.new_version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release notes: auto-generated" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifacts: $(ls dist/ | wc -l) files" >> "$GITHUB_STEP_SUMMARY"

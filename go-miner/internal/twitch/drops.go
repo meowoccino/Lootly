@@ -1,0 +1,686 @@
+package twitch
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"math/rand/v2"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/Guliveer/twitch-miner-go/internal/constants"
+	"github.com/Guliveer/twitch-miner-go/internal/model"
+)
+
+// SyncCampaigns synchronizes drop campaigns with the user's inventory
+// and updates streamer campaign data. This is called periodically by the miner.
+func (c *Client) SyncCampaigns(ctx context.Context, streamers []*model.Streamer) error {
+	if err := c.ClaimAllDropsFromInventory(ctx); err != nil {
+		c.Log.Warn("Failed to claim drops from inventory", "error", err)
+	}
+
+	dashboardCampaigns, err := c.GQL.GetDropsDashboard(ctx, "")
+	if err != nil {
+		return fmt.Errorf("getting drops dashboard: %w", err)
+	}
+
+	campaignIDs := make([]string, 0, len(dashboardCampaigns))
+	for _, raw := range dashboardCampaigns {
+		var campaignID struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(raw, &campaignID); err == nil && campaignID.ID != "" {
+			campaignIDs = append(campaignIDs, campaignID.ID)
+		}
+	}
+
+	var campaignDetails []json.RawMessage
+	if len(campaignIDs) > 0 {
+		campaignDetails, err = c.GQL.GetDropCampaignDetailsBatch(ctx, campaignIDs, c.Auth.UserID())
+		if err != nil {
+			return fmt.Errorf("getting campaign details: %w", err)
+		}
+	}
+
+	activeCampaigns := c.activeCampaigns(campaignDetails)
+
+	activeCampaigns, err = c.syncCampaignsWithInventory(ctx, activeCampaigns)
+	if err != nil {
+		c.Log.Warn("Failed to sync campaigns with inventory", "error", err)
+	}
+
+	if len(activeCampaigns) > 0 {
+		c.prefetchCampaignIDs(ctx, streamers)
+	}
+	for _, streamer := range streamers {
+		streamer.Mu.Lock()
+		if streamer.Settings != nil && streamer.Settings.ClaimDrops {
+			var matchingCampaigns []model.Campaign
+			for _, campaign := range activeCampaigns {
+				if len(campaign.Drops) > 0 && campaignMatchesStreamer(campaign, streamer) {
+					matchingCampaigns = append(matchingCampaigns, *campaign)
+				}
+			}
+			streamer.Stream.Campaigns = matchingCampaigns
+		}
+		streamer.Mu.Unlock()
+	}
+
+	// Spade acceptance does not prove credit, so drop progress is checked on
+	// every sync to catch streamers whose watch time is not being counted.
+	c.detectStalledDropCredit(streamers, time.Now())
+
+	if !c.startupDropsLogged {
+		c.startupDropsLogged = true
+		c.logDropStatuses(ctx)
+	} else {
+		c.logUpdatedDropProgress(ctx, streamers)
+	}
+
+	return nil
+}
+
+func (c *Client) prefetchCampaignIDs(ctx context.Context, streamers []*model.Streamer) {
+	// Pre-populate CampaignIDs for streamers with ClaimDrops but no CampaignIDs yet.
+	// campaignMatchesStreamer requires CampaignIDs, which are normally set by
+	// updateStream() during the minute-watched loop. At startup updateStream()
+	// hasn't been called yet, so CampaignIDs would be empty and no campaign would
+	// match. Fetch them here so DROP_STATUS can be reported immediately.
+	var campaignIDWg sync.WaitGroup
+	sem := make(chan struct{}, constants.StartupWorkers)
+	for _, streamer := range streamers {
+		streamer.Mu.RLock()
+		needsIDs := streamer.Settings != nil && streamer.Settings.ClaimDrops && len(streamer.Stream.CampaignIDs) == 0
+		channelID := streamer.ChannelID
+		streamer.Mu.RUnlock()
+		if !needsIDs {
+			continue
+		}
+		campaignIDWg.Add(1)
+		go func(s *model.Streamer, cid string) {
+			defer campaignIDWg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			ids, err := c.GQL.GetAvailableCampaigns(ctx, cid)
+			if err != nil {
+				c.Log.Debug("Failed to fetch available campaigns",
+					"streamer", s.Username, "error", err)
+				return
+			}
+			s.Mu.Lock()
+			s.Stream.CampaignIDs = ids
+			s.Mu.Unlock()
+		}(streamer, channelID)
+	}
+	campaignIDWg.Wait()
+}
+
+func (c *Client) syncCampaignsWithInventory(ctx context.Context, campaigns []*model.Campaign) ([]*model.Campaign, error) {
+	inventoryData, err := c.GQL.GetDropsInventory(ctx)
+	if err != nil {
+		return campaigns, fmt.Errorf("getting inventory: %w", err)
+	}
+
+	if inventoryData == nil {
+		return campaigns, nil
+	}
+
+	var inventory struct {
+		DropCampaignsInProgress []struct {
+			ID             string `json:"id"`
+			TimeBasedDrops []struct {
+				ID              string `json:"id"`
+				Name            string `json:"name"`
+				RequiredMinutes int    `json:"requiredMinutesWatched"`
+				Self            *struct {
+					HasPreconditionsMet   bool   `json:"hasPreconditionsMet"`
+					CurrentMinutesWatched int    `json:"currentMinutesWatched"`
+					DropInstanceID        string `json:"dropInstanceID"`
+					IsClaimed             bool   `json:"isClaimed"`
+				} `json:"self"`
+			} `json:"timeBasedDrops"`
+		} `json:"dropCampaignsInProgress"`
+	}
+
+	if err := json.Unmarshal(inventoryData, &inventory); err != nil {
+		return campaigns, fmt.Errorf("parsing inventory: %w", err)
+	}
+
+	if inventory.DropCampaignsInProgress == nil {
+		return campaigns, nil
+	}
+	if len(campaigns) == 0 && len(inventory.DropCampaignsInProgress) == 0 {
+		return campaigns, nil
+	}
+
+	// The dashboard can be empty even when Twitch returns complete campaign
+	// details alongside progress in inventory. IDs still have to match the
+	// channel's own eligibility before the scheduler can use those details.
+	if len(campaigns) == 0 {
+		var details struct {
+			Campaigns []json.RawMessage `json:"dropCampaignsInProgress"`
+		}
+		if err := json.Unmarshal(inventoryData, &details); err != nil {
+			return campaigns, fmt.Errorf("parsing inventory campaign details: %w", err)
+		}
+		campaigns = c.activeCampaigns(details.Campaigns)
+	}
+
+	currentDropIDs := make(map[string]struct{})
+	for _, progress := range inventory.DropCampaignsInProgress {
+		for _, timeDrop := range progress.TimeBasedDrops {
+			currentDropIDs[timeDrop.ID] = struct{}{}
+		}
+	}
+	c.detectVanishedDrops(currentDropIDs)
+	c.detectSyntheticDrops(campaigns, currentDropIDs)
+
+	for i, campaign := range campaigns {
+		for _, drop := range campaign.Drops {
+			if _, synthetic := c.dropSynthetic.Load(drop.ID); synthetic {
+				drop.IsSynthetic = true
+			}
+		}
+		campaign.ClearDrops()
+		for _, progress := range inventory.DropCampaignsInProgress {
+			if progress.ID == campaign.ID {
+				campaigns[i].IsInInventory = true
+				for _, timeDrop := range progress.TimeBasedDrops {
+					for _, drop := range campaigns[i].Drops {
+						if drop.ID == timeDrop.ID && timeDrop.Self != nil {
+							drop.Update(
+								timeDrop.Self.HasPreconditionsMet,
+								timeDrop.Self.CurrentMinutesWatched,
+								timeDrop.Self.DropInstanceID,
+								timeDrop.Self.IsClaimed,
+							)
+						}
+					}
+				}
+				campaigns[i].ClearDrops()
+				break
+			}
+		}
+	}
+
+	return campaigns, nil
+}
+
+func (c *Client) detectVanishedDrops(currentDropIDs map[string]struct{}) {
+	var missing []string
+
+	c.dropSeenCount.Range(func(key, value any) bool {
+		dropID, ok := key.(string)
+		if !ok {
+			return true
+		}
+		if _, present := currentDropIDs[dropID]; present {
+			c.dropSeenCount.Store(dropID, 0)
+		} else {
+			missing = append(missing, dropID)
+		}
+		return true
+	})
+
+	for _, dropID := range missing {
+		val, _ := c.dropSeenCount.LoadAndDelete(dropID)
+		count, ok := val.(int)
+		if !ok {
+			continue
+		}
+		count++
+		if count >= 3 {
+			if _, already := c.dropVanished.LoadOrStore(dropID, true); !already {
+				c.Log.Warn("Drop vanished from inventory after repeated polls", "drop_id", dropID)
+			}
+		} else {
+			c.dropSeenCount.Store(dropID, count)
+		}
+	}
+
+	for dropID := range currentDropIDs {
+		if _, exists := c.dropSeenCount.Load(dropID); !exists {
+			c.dropSeenCount.Store(dropID, 0)
+		}
+	}
+}
+
+func (c *Client) detectSyntheticDrops(campaigns []*model.Campaign, currentDropIDs map[string]struct{}) {
+	campaignDropIDs := make(map[string]struct{})
+	for _, campaign := range campaigns {
+		for _, drop := range campaign.Drops {
+			campaignDropIDs[drop.ID] = struct{}{}
+		}
+	}
+
+	var missing []string
+	c.dropSynthMissingCount.Range(func(key, value any) bool {
+		dropID, ok := key.(string)
+		if !ok {
+			return true
+		}
+		if _, present := campaignDropIDs[dropID]; !present {
+			c.dropSynthMissingCount.Delete(dropID)
+			return true
+		}
+		if _, inInventory := currentDropIDs[dropID]; inInventory {
+			c.dropSynthMissingCount.Store(dropID, 0)
+		} else {
+			missing = append(missing, dropID)
+		}
+		return true
+	})
+
+	for _, dropID := range missing {
+		val, _ := c.dropSynthMissingCount.LoadAndDelete(dropID)
+		count, ok := val.(int)
+		if !ok {
+			continue
+		}
+		count++
+		if count >= constants.SynthSkipPolls {
+			if _, already := c.dropSynthetic.LoadOrStore(dropID, true); !already {
+				c.Log.Warn("Drop is synthetic — never appeared in inventory", "drop_id", dropID)
+			}
+		} else {
+			c.dropSynthMissingCount.Store(dropID, count)
+		}
+	}
+
+	for dropID := range campaignDropIDs {
+		if _, exists := c.dropSynthMissingCount.Load(dropID); !exists {
+			if _, inInventory := currentDropIDs[dropID]; !inInventory {
+				c.dropSynthMissingCount.Store(dropID, 1)
+			}
+		}
+	}
+}
+
+// ClaimDrop claims a single drop reward.
+func (c *Client) ClaimDrop(ctx context.Context, dropInstanceID string) error {
+	c.Log.Info("Claiming drop", "drop_instance_id", dropInstanceID)
+	claimed, err := c.GQL.ClaimDropRewards(ctx, dropInstanceID)
+	if err != nil {
+		return fmt.Errorf("claiming drop %s: %w", dropInstanceID, err)
+	}
+	if !claimed {
+		return fmt.Errorf("drop %s was not claimed", dropInstanceID)
+	}
+	return nil
+}
+
+// ClaimAllDropsFromInventory claims all pending drops from the user's inventory.
+func (c *Client) ClaimAllDropsFromInventory(ctx context.Context) error {
+	inventoryData, err := c.GQL.GetDropsInventory(ctx)
+	if err != nil {
+		return fmt.Errorf("getting inventory: %w", err)
+	}
+
+	if inventoryData == nil {
+		return nil
+	}
+
+	var inventory struct {
+		DropCampaignsInProgress []struct {
+			Game *struct {
+				Name string `json:"name"`
+				Slug string `json:"slug"`
+			} `json:"game"`
+			TimeBasedDrops []struct {
+				ID           string `json:"id"`
+				Name         string `json:"name"`
+				BenefitEdges []struct {
+					Benefit struct {
+						Name string `json:"name"`
+					} `json:"benefit"`
+				} `json:"benefitEdges"`
+				Self *struct {
+					DropInstanceID string `json:"dropInstanceID"`
+					IsClaimed      bool   `json:"isClaimed"`
+				} `json:"self"`
+			} `json:"timeBasedDrops"`
+		} `json:"dropCampaignsInProgress"`
+	}
+
+	if err := json.Unmarshal(inventoryData, &inventory); err != nil {
+		return fmt.Errorf("parsing inventory: %w", err)
+	}
+
+	if inventory.DropCampaignsInProgress == nil {
+		return nil
+	}
+
+	for _, campaign := range inventory.DropCampaignsInProgress {
+		for _, drop := range campaign.TimeBasedDrops {
+			if drop.Self == nil {
+				continue
+			}
+			if drop.Self.IsClaimed || drop.Self.DropInstanceID == "" {
+				continue
+			}
+
+			// Dedup by drop definition ID — the same drop can appear across
+			// multiple campaigns with different instance IDs. Claiming one
+			// instance is enough; Twitch marks the rest as claimed server-side.
+			if _, alreadyAttempted := c.claimedDrops.Load(drop.ID); alreadyAttempted {
+				continue
+			}
+
+			categoryName := ""
+			if campaign.Game != nil {
+				categoryName = campaign.Game.Slug
+				if categoryName == "" {
+					categoryName = campaign.Game.Name
+				}
+			}
+
+			// Use the benefit/reward name if available, fall back to the time-based drop name.
+			dropName := drop.Name
+			if len(drop.BenefitEdges) > 0 && drop.BenefitEdges[0].Benefit.Name != "" {
+				dropName = drop.BenefitEdges[0].Benefit.Name
+			}
+
+			c.Log.Event(ctx, model.EventDropClaim, "Claiming drop from inventory",
+				"drop", dropName,
+				"category", categoryName)
+
+			// Mark as attempted before calling the API to prevent duplicates.
+			c.claimedDrops.Store(drop.ID, true)
+
+			claimed, err := c.GQL.ClaimDropRewards(ctx, drop.Self.DropInstanceID)
+			if err != nil {
+				if strings.Contains(err.Error(), "PRECONDITIONS_NOT_MET") {
+					c.Log.Warn("Drop claim requires external account linking",
+						"drop", dropName, "category", categoryName,
+						"hint", "Link your game account to Twitch to claim this drop")
+				} else {
+					c.Log.Warn("Failed to claim drop from inventory",
+						"drop", dropName, "error", err)
+				}
+			} else if !claimed {
+				c.Log.Warn("Drop claim was not accepted",
+					"drop", dropName)
+			}
+
+			sleepDuration := time.Duration(5+rand.IntN(5)) * time.Second
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(sleepDuration):
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) activeCampaigns(details []json.RawMessage) []*model.Campaign {
+	campaigns := make([]*model.Campaign, 0, len(details))
+	for _, raw := range details {
+		if raw == nil {
+			continue
+		}
+		campaign, err := parseCampaign(raw)
+		if err != nil {
+			c.Log.Debug("Failed to parse campaign", "error", err)
+			continue
+		}
+		if campaign.IsWithinTimeWindow {
+			campaign.ClearDrops()
+			if len(campaign.Drops) > 0 {
+				campaigns = append(campaigns, campaign)
+			}
+		}
+	}
+	return campaigns
+}
+
+func parseCampaign(raw json.RawMessage) (*model.Campaign, error) {
+	var data struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Status  string `json:"status"`
+		StartAt string `json:"startAt"`
+		EndAt   string `json:"endAt"`
+		Game    *struct {
+			ID          string `json:"id"`
+			Name        string `json:"name"`
+			DisplayName string `json:"displayName"`
+			Slug        string `json:"slug"`
+		} `json:"game"`
+		Allow *struct {
+			Channels []struct {
+				ID string `json:"id"`
+			} `json:"channels"`
+		} `json:"allow"`
+		TimeBasedDrops []struct {
+			ID              string `json:"id"`
+			Name            string `json:"name"`
+			RequiredMinutes int    `json:"requiredMinutesWatched"`
+			RequiredSubs    int    `json:"requiredSubs"`
+			StartAt         string `json:"startAt"`
+			EndAt           string `json:"endAt"`
+			BenefitEdges    []struct {
+				Benefit struct {
+					Name string `json:"name"`
+				} `json:"benefit"`
+			} `json:"benefitEdges"`
+		} `json:"timeBasedDrops"`
+	}
+
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, fmt.Errorf("parsing campaign JSON: %w", err)
+	}
+
+	var gameInfo *model.GameInfo
+	if data.Game != nil {
+		gameInfo = &model.GameInfo{
+			ID:          data.Game.ID,
+			Name:        data.Game.Name,
+			DisplayName: data.Game.DisplayName,
+			Slug:        data.Game.Slug,
+		}
+	}
+
+	startAt, _ := time.Parse(time.RFC3339, data.StartAt)
+	endAt, _ := time.Parse(time.RFC3339, data.EndAt)
+
+	var channels []string
+	if data.Allow != nil {
+		for _, channel := range data.Allow.Channels {
+			channels = append(channels, channel.ID)
+		}
+	}
+
+	campaign := model.NewCampaign(data.ID, data.Name, data.Status, gameInfo, startAt, endAt, channels)
+
+	for _, timeDrop := range data.TimeBasedDrops {
+		dropStart, _ := time.Parse(time.RFC3339, timeDrop.StartAt)
+		dropEnd, _ := time.Parse(time.RFC3339, timeDrop.EndAt)
+
+		var benefits []string
+		for _, benefitEdge := range timeDrop.BenefitEdges {
+			benefits = append(benefits, benefitEdge.Benefit.Name)
+		}
+
+		drop := model.NewDrop(timeDrop.ID, timeDrop.Name, benefits, timeDrop.RequiredMinutes, dropStart, dropEnd)
+		drop.RequiresSubscription = timeDrop.RequiredSubs > 0
+		campaign.Drops = append(campaign.Drops, drop)
+	}
+
+	return campaign, nil
+}
+
+func campaignMatchesStreamer(campaign *model.Campaign, streamer *model.Streamer) bool {
+	if campaign.Game != nil && streamer.Stream.Game != nil &&
+		campaign.Game.Name != streamer.Stream.Game.Name {
+		return false
+	}
+	return slices.Contains(streamer.Stream.CampaignIDs, campaign.ID)
+}
+
+func (c *Client) logDropStatuses(ctx context.Context) {
+	inventoryData, err := c.GQL.GetDropsInventory(ctx)
+	if err != nil {
+		c.Log.Debug("Failed to get drops inventory for status", "error", err)
+		return
+	}
+
+	if inventoryData == nil {
+		c.Log.Info("📦 No active drops")
+		return
+	}
+
+	var inventory struct {
+		DropCampaignsInProgress []struct {
+			Game *struct {
+				Name string `json:"name"`
+				Slug string `json:"slug"`
+			} `json:"game"`
+			TimeBasedDrops []struct {
+				ID              string `json:"id"`
+				Name            string `json:"name"`
+				RequiredMinutes int    `json:"requiredMinutesWatched"`
+				BenefitEdges    []struct {
+					Benefit struct {
+						Name string `json:"name"`
+					} `json:"benefit"`
+				} `json:"benefitEdges"`
+				Self *struct {
+					HasPreconditionsMet   bool   `json:"hasPreconditionsMet"`
+					CurrentMinutesWatched int    `json:"currentMinutesWatched"`
+					DropInstanceID        string `json:"dropInstanceID"`
+					IsClaimed             bool   `json:"isClaimed"`
+				} `json:"self"`
+			} `json:"timeBasedDrops"`
+		} `json:"dropCampaignsInProgress"`
+	}
+
+	if err := json.Unmarshal(inventoryData, &inventory); err != nil {
+		c.Log.Debug("Failed to parse inventory for status", "error", err)
+		return
+	}
+
+	if len(inventory.DropCampaignsInProgress) == 0 {
+		c.Log.Info("📦 No active drops")
+		return
+	}
+
+	for _, campaign := range inventory.DropCampaignsInProgress {
+		gameName := ""
+		if campaign.Game != nil {
+			gameName = campaign.Game.Slug
+			if gameName == "" {
+				gameName = campaign.Game.Name
+			}
+		}
+
+		for _, drop := range campaign.TimeBasedDrops {
+			if drop.Self == nil {
+				continue
+			}
+
+			rewardName := drop.Name
+			if len(drop.BenefitEdges) > 0 && drop.BenefitEdges[0].Benefit.Name != "" {
+				rewardName = drop.BenefitEdges[0].Benefit.Name
+			}
+
+			status := "IN_PROGRESS"
+			if drop.Self.IsClaimed {
+				status = "CLAIMED"
+			} else if drop.Self.DropInstanceID != "" {
+				status = "CLAIMABLE"
+			}
+
+			c.Log.Info("📦 Drop in progress",
+				"reward", rewardName,
+				"category", gameName,
+				"progress", fmt.Sprintf("%d/%dm", drop.Self.CurrentMinutesWatched, drop.RequiredMinutes),
+				"status", status)
+
+			if !drop.Self.IsClaimed && drop.Self.DropInstanceID != "" {
+				if _, alreadySeen := c.seenClaimable.LoadOrStore(drop.ID, true); !alreadySeen {
+					c.Log.Event(ctx, model.EventDropClaimAvailable,
+						fmt.Sprintf("Drop available to claim: %s", rewardName),
+						"reward", rewardName,
+						"category", gameName)
+				}
+			}
+		}
+	}
+}
+
+func (c *Client) logUpdatedDropProgress(ctx context.Context, streamers []*model.Streamer) {
+	for _, streamer := range streamers {
+		streamer.Mu.Lock()
+		if streamer.Settings == nil {
+			streamer.Mu.Unlock()
+			continue
+		}
+
+		for _, campaign := range streamer.Stream.Campaigns {
+			gameName := ""
+			if campaign.Game != nil {
+				gameName = campaign.Game.Slug
+				if gameName == "" {
+					gameName = campaign.Game.DisplayName
+				}
+			}
+
+			for _, drop := range campaign.Drops {
+				if drop.IsPrintable {
+					streamer.UpdateHistory(string(model.EventDropStatus), 0, 1)
+
+					status := "IN_PROGRESS"
+					if drop.IsClaimed {
+						status = "CLAIMED"
+					} else if drop.IsClaimable {
+						status = "CLAIMABLE"
+					}
+
+					c.Log.Info("📦 Drop in progress",
+						"streamer", streamer.Username,
+						"reward", drop.Benefit,
+						"category", gameName,
+						"progress", drop.ProgressBar(),
+						"status", status)
+
+					if isQuarterMilestone(drop.PercentageProgress) {
+						key := drop.DropInstanceID + ":" + fmt.Sprintf("%d", drop.PercentageProgress)
+						if _, loaded := c.dropMilestoneNotified.LoadOrStore(key, true); !loaded {
+							streamer.UpdateHistory(string(model.EventDropMilestone), 0, 1)
+							c.Log.Event(ctx, model.EventDropMilestone,
+								fmt.Sprintf("Drop milestone: %d%%", drop.PercentageProgress),
+								"streamer", streamer.Username,
+								"reward", drop.Benefit,
+								"category", gameName,
+								"progress", drop.ProgressBar())
+						}
+					}
+				}
+
+				if drop.IsClaimable {
+					rewardName := drop.Benefit
+					if rewardName == "" {
+						rewardName = drop.Name
+					}
+					if _, alreadySeen := c.seenClaimable.LoadOrStore(drop.ID, true); !alreadySeen {
+						streamer.UpdateHistory(string(model.EventDropClaimAvailable), 0, 1)
+						c.Log.Event(ctx, model.EventDropClaimAvailable,
+							fmt.Sprintf("Drop available to claim: %s", rewardName),
+							"reward", rewardName,
+							"category", gameName)
+					}
+				}
+			}
+		}
+		streamer.Mu.Unlock()
+	}
+}
+
+func isQuarterMilestone(pct int) bool {
+	return pct > 0 && pct%25 == 0
+}

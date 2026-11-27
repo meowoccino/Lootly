@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lootly</string>
+    <string name="notification_channel_miner_name">Lootly Status</string>
+    <string name="notification_channel_miner_desc">Persistent watch-time badge mining progress and quick controls</string>
+    <string name="notification_channel_claims_name">Claimed Badges</string>
+    <string name="notification_channel_claims_desc">Alerts when a watch-time badge drop is automatically claimed</string>
+</resources>
