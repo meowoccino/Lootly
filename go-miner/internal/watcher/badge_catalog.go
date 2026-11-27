@@ -193,7 +193,7 @@ var paidBadgeWordRE = regexp.MustCompile(`^(?:subs?|subscrib(?:e[ds]?|ing|ers?)|
 // attention" eligible while rejecting descriptions such as "buying a tier".
 var paidBadgePhraseRE = regexp.MustCompile(`(?:\b(?:buy|buys|buying|bought)\b(?:\s+[a-z0-9]+){0,3}\s+\b(?:tiers?|game|edition|bundle|subs?|subscriptions?)\b|\bprime\s+(?:gaming|subs?|subscriptions?|rewards?)\b|\bcheer(?:s|ed|ing)?\s+(?:[0-9]+|to\s+unlock|with\s+bits)\b|\b(?:pay|pays|paying|paid)\s+to\s+unlock\b|\b(?:paid|payments?)\s+(?:badges?|rewards?|tiers?|subs?|subscriptions?)\b)`)
 
-var nonWatchCatalogRE = regexp.MustCompile(`(?i)\b(?:evolv(?:e[ds]?|ing)|subbing|clip(?:s|ped|ping)?|chat(?:s|ted|ting)?|securing\s+all)\b`)
+var nonWatchCatalogRE = regexp.MustCompile(`(?i)\b(?:evolv(?:e[ds]?|ing)|evolutions?|subbing|clip(?:s|ped|ping)?|chat(?:s|ted|ting)?|securing\s+all)\b`)
 
 func badgeRequiresPayment(description string) bool {
 	if nonWatchCatalogRE.MatchString(description) {
@@ -209,6 +209,9 @@ func badgeRequiresPayment(description string) bool {
 }
 
 func badgeTitlesForWatchReward(reward, game, campaign string, badges []badgeDefinition) ([]string, bool) {
+	if nonWatchCatalogRE.MatchString(campaign) {
+		return nil, false
+	}
 	for _, badge := range badges {
 		if !badgeRequiresPayment(badge.Description) && isBadgeReward(reward, game, badge.Title) {
 			return []string{badge.Title}, false
@@ -327,6 +330,12 @@ func loadBadgeCampaigns(ctx context.Context, client *http.Client, dropsURL, badg
 			if strings.TrimSpace(campaign.ID) == "" {
 				if logSkip != nil {
 					logSkip(campaign.Name, "", "missing campaign ID", nil)
+				}
+				continue
+			}
+			if nonWatchCatalogRE.MatchString(campaign.Name) {
+				if logSkip != nil {
+					logSkip(campaign.Name, "", "non-watch campaign", nil)
 				}
 				continue
 			}

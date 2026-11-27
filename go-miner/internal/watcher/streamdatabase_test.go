@@ -309,4 +309,22 @@ func TestBlastoiseRejectedAcrossAllSources(t *testing.T) {
 	if len(matches) != 0 {
 		t.Fatalf("badgeTitlesForWatchReward accepted Blastoise: %v", matches)
 	}
+
+	// Exact live zarmstrong/twitch-drops.json + twitch-badges.json Pikachu case:
+	// Campaign "Pokemon Evolutions" with drop "Pikachu Badge" must NOT match either
+	// "Pikachu" (evolving) or "2026 Worlds costumed Pikachu" (World Championships).
+	liveBadges := []badgeDefinition{
+		{
+			Title:       "2026 Worlds costumed Pikachu",
+			Description: "This badge was earned during the 2026 Pokémon World Championships.",
+		},
+		{
+			Title:       "Pikachu",
+			Description: "This badge was earned by evolving a badge from the Pokémon First Partners Collection campaign.",
+		},
+	}
+	pikaMatches, _ := badgeTitlesForWatchReward("Pikachu Badge", "Pokémon", "Pokemon Evolutions", liveBadges)
+	if len(pikaMatches) != 0 {
+		t.Fatalf("badgeTitlesForWatchReward accepted live Pikachu entry: %v", pikaMatches)
+	}
 }
