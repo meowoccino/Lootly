@@ -23,6 +23,7 @@ const (
 
 type badgeCampaign struct {
 	ID, Name, GameName, GameSlug string
+	BadgeImageURL                string
 	StartsAt, EndsAt             time.Time
 	AllChannels                  bool
 	HasAmbiguousDrops            bool
@@ -79,6 +80,9 @@ type badgesCatalog struct {
 		Versions []struct {
 			Title       string `json:"title"`
 			Description string `json:"description"`
+			ImageURL4x  string `json:"image_url_4x"`
+			ImageURL2x  string `json:"image_url_2x"`
+			ImageURL1x  string `json:"image_url_1x"`
 		} `json:"versions"`
 	} `json:"sets"`
 }
@@ -86,6 +90,7 @@ type badgesCatalog struct {
 type badgeDefinition struct {
 	Title       string
 	Description string
+	ImageURL    string
 }
 
 var badgeWordsRE = regexp.MustCompile(`[a-z0-9]+`)
@@ -188,7 +193,12 @@ var paidBadgeWordRE = regexp.MustCompile(`^(?:subs?|subscrib(?:e[ds]?|ing|ers?)|
 // attention" eligible while rejecting descriptions such as "buying a tier".
 var paidBadgePhraseRE = regexp.MustCompile(`(?:\b(?:buy|buys|buying|bought)\b(?:\s+[a-z0-9]+){0,3}\s+\b(?:tiers?|game|edition|bundle|subs?|subscriptions?)\b|\bprime\s+(?:gaming|subs?|subscriptions?|rewards?)\b|\bcheer(?:s|ed|ing)?\s+(?:[0-9]+|to\s+unlock|with\s+bits)\b|\b(?:pay|pays|paying|paid)\s+to\s+unlock\b|\b(?:paid|payments?)\s+(?:badges?|rewards?|tiers?|subs?|subscriptions?)\b)`)
 
+var nonWatchCatalogRE = regexp.MustCompile(`(?i)\b(?:evolv(?:e[ds]?|ing)|subbing|clip(?:s|ped|ping)?|chat(?:s|ted|ting)?|securing\s+all)\b`)
+
 func badgeRequiresPayment(description string) bool {
+	if nonWatchCatalogRE.MatchString(description) {
+		return true
+	}
 	descriptionWords := words(description)
 	for _, word := range descriptionWords {
 		if paidBadgeWordRE.MatchString(word) {
@@ -286,10 +296,21 @@ func loadBadgeCampaigns(ctx context.Context, client *http.Client, dropsURL, badg
 		return nil, fmt.Errorf("badges catalog: %w", err)
 	}
 	var badges []badgeDefinition
+	badgeImages := make(map[string]string)
 	for _, set := range bc.Sets {
 		for _, v := range set.Versions {
 			if strings.TrimSpace(v.Title) != "" {
-				badges = append(badges, badgeDefinition{Title: v.Title, Description: v.Description})
+				img := v.ImageURL4x
+				if img == "" {
+					img = v.ImageURL2x
+				}
+				if img == "" {
+					img = v.ImageURL1x
+				}
+				badges = append(badges, badgeDefinition{Title: v.Title, Description: v.Description, ImageURL: img})
+				if img != "" {
+					badgeImages[strings.ToLower(strings.TrimSpace(v.Title))] = img
+				}
 			}
 		}
 	}
@@ -344,7 +365,14 @@ func loadBadgeCampaigns(ctx context.Context, client *http.Client, dropsURL, badg
 				continue
 			}
 			sort.Strings(matches)
-			entry := badgeCampaign{ID: campaign.ID, Name: campaign.Name, GameName: game.Game, GameSlug: gameSlug, EndsAt: *campaign.EndsAt, AllChannels: campaign.AllChannels, HasAmbiguousDrops: hadAmbiguousDrop, Channels: campaign.Channels, BadgeNames: matches}
+			badgeImg := ""
+			for _, m := range matches {
+				if img := badgeImages[strings.ToLower(strings.TrimSpace(m))]; img != "" {
+					badgeImg = img
+					break
+				}
+			}
+			entry := badgeCampaign{ID: campaign.ID, Name: campaign.Name, GameName: game.Game, GameSlug: gameSlug, BadgeImageURL: badgeImg, EndsAt: *campaign.EndsAt, AllChannels: campaign.AllChannels, HasAmbiguousDrops: hadAmbiguousDrop, Channels: campaign.Channels, BadgeNames: matches}
 			entry.WatchTimes = watchTimes
 			if campaign.StartsAt != nil {
 				entry.StartsAt = *campaign.StartsAt

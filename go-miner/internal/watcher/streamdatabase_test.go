@@ -276,3 +276,37 @@ func TestCalculateStepDurations(t *testing.T) {
 		t.Fatalf("unexpected daily steps: %v", daily)
 	}
 }
+
+func TestBlastoiseRejectedAcrossAllSources(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	start := now.Add(-24 * time.Hour)
+	end := now.Add(72 * time.Hour)
+	desc := "This badge was earned by evolving a badge from the Pokémon First Partners Collection campaign."
+
+	for _, cost := range []string{"paid", "free"} {
+		b := StreamDatabaseBadge{
+			ID:          "pokemon-blastoise",
+			Title:       "Blastoise",
+			Description: desc,
+			Cost:        cost,
+			Added:       true,
+			Removed:     false,
+			StartAt:     &start,
+			EndAt:       &end,
+		}
+		if IsWatchToEarnBadge(b, now) {
+			t.Fatalf("IsWatchToEarnBadge accepted Blastoise with cost=%q", cost)
+		}
+	}
+
+	if !badgeRequiresPayment(desc) {
+		t.Fatal("badgeRequiresPayment must reject Blastoise evolving description")
+	}
+
+	matches, _ := badgeTitlesForWatchReward("Blastoise", "Pokémon", "Pokémon First Partners Collection", []badgeDefinition{
+		{Title: "Blastoise", Description: desc},
+	})
+	if len(matches) != 0 {
+		t.Fatalf("badgeTitlesForWatchReward accepted Blastoise: %v", matches)
+	}
+}

@@ -183,7 +183,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			"badge_name", badgeName,
 			"badges", strings.Join(c.BadgeNames, ", "),
 			"game", c.GameName,
-			"badge_image_url", "",
+			"badge_image_url", c.BadgeImageURL,
 			"required_minutes", reqMinutes,
 			"ends_at", c.EndsAt.UTC().Format(time.RFC3339),
 		)
@@ -224,7 +224,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			bw.mu.Unlock()
 			reserved[strings.ToLower(candidate.stream.Username)] = true
 			used++
-			bw.log.Info("🏅 Using existing streamer for badge campaign", "streamer", candidate.stream.Username, "campaign", c.Name, "category", c.GameSlug, "badges", strings.Join(c.BadgeNames, ", "))
+			bw.log.Info("🏅 Using existing streamer for badge campaign", "streamer", candidate.stream.Username, "campaign", c.Name, "category", c.GameSlug, "badges", strings.Join(c.BadgeNames, ", "), "badge_image_url", c.BadgeImageURL)
 			continue
 		}
 		s := bw.badgeStreamer(ctx, candidate.stream, c, candidate.campaignIDs)
@@ -235,7 +235,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		bw.mu.Unlock()
 		reserved[strings.ToLower(candidate.stream.Username)] = true
 		used++
-		bw.log.Info("🏅 Discovered badge campaign stream", "streamer", candidate.stream.Username, "campaign", c.Name, "category", c.GameSlug, "badges", strings.Join(c.BadgeNames, ", "))
+		bw.log.Info("🏅 Discovered badge campaign stream", "streamer", candidate.stream.Username, "campaign", c.Name, "category", c.GameSlug, "badges", strings.Join(c.BadgeNames, ", "), "badge_image_url", c.BadgeImageURL)
 	}
 }
 

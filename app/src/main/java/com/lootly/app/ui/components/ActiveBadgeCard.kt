@@ -389,10 +389,36 @@ fun ActiveBadgeCard(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MinerColors.Ground),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!item.badgeImageUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = item.badgeImageUrl,
+                                            contentDescription = item.badgeName,
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.WorkspacePremium,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MinerColors.TwitchVioletGlow
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     text = item.badgeName,
                                     color = MinerColors.TextPrimary,
