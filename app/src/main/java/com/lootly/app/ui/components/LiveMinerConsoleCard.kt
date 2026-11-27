@@ -3,8 +3,8 @@ package com.lootly.app.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,22 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Terminal
-import androidx.compose.material.icons.rounded.VerticalAlignBottom
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,8 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lootly.app.data.model.LogEntry
@@ -57,98 +49,56 @@ fun LiveMinerConsoleCard(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(true) }
-    var autoScroll by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
 
-    LaunchedEffect(logs.size, expanded, autoScroll) {
-        if (expanded && autoScroll && logs.isNotEmpty()) {
+    LaunchedEffect(logs.size, expanded) {
+        if (expanded && logs.isNotEmpty()) {
             listState.animateScrollToItem(logs.lastIndex)
         }
     }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         color = MinerColors.Panel,
         border = BorderStroke(1.dp, MinerColors.Hairline)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Terminal,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MinerColors.TwitchVioletGlow
-                )
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "LIVE MINER CONSOLE",
-                    modifier = Modifier.weight(1f),
-                    color = MinerColors.TextSecondary,
-                    style = MaterialTheme.typography.labelSmall
+                    text = "Console",
+                    color = MinerColors.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { expanded = !expanded }
                 )
-                Text(
-                    text = logs.size.toString(),
-                    color = MinerColors.TextMuted,
-                    style = MaterialTheme.typography.labelSmall
-                )
-                if (expanded) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = { autoScroll = !autoScroll },
-                        modifier = Modifier.size(30.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.VerticalAlignBottom,
-                            contentDescription = "Toggle auto-scroll",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (autoScroll) MinerColors.LiveMint else MinerColors.TextMuted
-                        )
-                    }
-                    IconButton(
-                        onClick = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Copy",
+                        color = MinerColors.TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.clickable {
                             val text = logs.joinToString("\n") {
-                                "[${it.timestamp}] [${it.category}] ${it.message}"
+                                "${it.timestamp} ${it.message}"
                             }
                             clipboard.setText(AnnotatedString(text))
-                        },
-                        modifier = Modifier.size(30.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
-                            contentDescription = "Copy logs",
-                            modifier = Modifier.size(15.dp),
-                            tint = MinerColors.TextSecondary
-                        )
-                    }
-                    IconButton(
-                        onClick = onClearLogs,
-                        modifier = Modifier.size(30.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.DeleteSweep,
-                            contentDescription = "Clear logs",
-                            modifier = Modifier.size(16.dp),
-                            tint = MinerColors.TextSecondary
-                        )
-                    }
+                        }
+                    )
+                    Text(
+                        text = "Clear",
+                        color = MinerColors.TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.clickable(onClick = onClearLogs)
+                    )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = if (expanded) "Collapse console" else "Expand console",
-                    modifier = Modifier.size(20.dp),
-                    tint = MinerColors.TextSecondary
-                )
             }
 
             AnimatedVisibility(visible = expanded) {
@@ -158,10 +108,11 @@ fun LiveMinerConsoleCard(
                         state = listState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 150.dp, max = 280.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MinerColors.ConsoleBg)
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                            .heightIn(min = 120.dp, max = 240.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MinerColors.Ground)
+                            .border(1.dp, MinerColors.Hairline, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         if (logs.isEmpty()) {
@@ -170,12 +121,34 @@ fun LiveMinerConsoleCard(
                                     text = "Waiting for miner engine logs…",
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 11.sp,
-                                    color = MinerColors.TextMuted
+                                    color = MinerColors.TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         } else {
                             items(logs, key = { it.id }) { entry ->
-                                ConsoleLogLine(entry)
+                                val msgColor = when (entry.level) {
+                                    LogLevel.ERROR -> MinerColors.DangerRed
+                                    LogLevel.WARN -> MinerColors.WarningAmber
+                                    else -> MinerColors.TextSecondary
+                                }
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(SpanStyle(color = MinerColors.TextMuted)) {
+                                            append(entry.timestamp)
+                                            append(" ")
+                                        }
+                                        withStyle(SpanStyle(color = msgColor)) {
+                                            append(entry.message)
+                                        }
+                                    },
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    lineHeight = 17.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -183,23 +156,4 @@ fun LiveMinerConsoleCard(
             }
         }
     }
-}
-
-@Composable
-private fun ConsoleLogLine(entry: LogEntry) {
-    val levelColor = when (entry.level) {
-        LogLevel.ERROR -> MinerColors.DangerRed
-        LogLevel.WARN -> MinerColors.WarningAmber
-        LogLevel.EVENT -> MinerColors.LiveMint
-        LogLevel.INFO -> MinerColors.InfoCyan
-        LogLevel.DEBUG -> MinerColors.TextMuted
-    }
-    Text(
-        text = "${entry.timestamp} [${entry.category}] ${entry.message}",
-        fontFamily = FontFamily.Monospace,
-        fontSize = 11.sp,
-        lineHeight = 15.sp,
-        fontWeight = if (entry.level == LogLevel.EVENT) FontWeight.Medium else FontWeight.Normal,
-        color = levelColor
-    )
 }
