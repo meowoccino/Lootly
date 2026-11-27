@@ -75,8 +75,25 @@ fun ActiveBadgeCard(
     val refreshRotation = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
-    val sortedEligible = remember(snapshot.eligibleBadges, pinned) {
-        snapshot.eligibleBadges.sortedWith(
+    val sortedEligible = remember(snapshot.eligibleBadges, snapshot.activeCampaign, pinned) {
+        val base = snapshot.eligibleBadges.ifEmpty {
+            val c = snapshot.activeCampaign
+            if (c != null) {
+                listOf(
+                    EligibleBadgeItem(
+                        campaignName = c.campaignName,
+                        badgeName = c.badgeName,
+                        allTiers = c.badgeName,
+                        gameName = c.category,
+                        badgeImageUrl = c.badgeImageUrl,
+                        requiredMinutes = c.requiredMinutes.takeIf { it > 0 } ?: 30
+                    )
+                )
+            } else {
+                emptyList()
+            }
+        }
+        base.sortedWith(
             compareByDescending<EligibleBadgeItem> {
                 !pinned.isNullOrBlank() &&
                     (it.badgeName.equals(pinned, ignoreCase = true) ||

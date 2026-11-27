@@ -167,6 +167,27 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		reserved[strings.ToLower(tr.username)] = true
 	}
 	bw.mu.Unlock()
+	for _, c := range eligibleOrdered {
+		badgeName := c.Name
+		if len(c.BadgeNames) > 0 {
+			badgeName = c.BadgeNames[0]
+		}
+		var reqMinutes int
+		if rw := rewards[c.ID]; rw.Remaining > 0 {
+			reqMinutes = int(rw.Remaining / time.Minute)
+		} else if len(c.BadgeNames) > 0 && c.WatchTimes[c.BadgeNames[0]] > 0 {
+			reqMinutes = int(c.WatchTimes[c.BadgeNames[0]] / time.Minute)
+		}
+		bw.log.Info("Badge campaign eligible",
+			"campaign", c.Name,
+			"badge_name", badgeName,
+			"badges", strings.Join(c.BadgeNames, ", "),
+			"game", c.GameName,
+			"badge_image_url", "",
+			"required_minutes", reqMinutes,
+			"ends_at", c.EndsAt.UTC().Format(time.RFC3339),
+		)
+	}
 	bw.log.Info("🏅 Badge campaigns evaluated", "catalog", len(campaigns), "eligible", len(eligibleOrdered), "active", used, "owned_badges", len(owned), "completed_campaigns", len(completed))
 	campaignLookupCache := make(map[string]badgeCampaignLookup)
 	for _, c := range eligibleOrdered {
