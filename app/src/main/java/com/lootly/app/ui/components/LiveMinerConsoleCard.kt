@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -87,25 +89,19 @@ fun LiveMinerConsoleCard(
                     ) { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Terminal,
-                    contentDescription = "Console",
-                    modifier = Modifier.size(18.dp),
-                    tint = MinerColors.TwitchVioletGlow
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = MinerColors.PanelRaised,
-                    border = BorderStroke(1.dp, MinerColors.Hairline)
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MinerColors.TwitchViolet.copy(alpha = 0.15f))
+                        .border(1.dp, MinerColors.TwitchViolet.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = logs.size.toString(),
-                        color = MinerColors.TextSecondary,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                    Icon(
+                        imageVector = Icons.Rounded.Terminal,
+                        contentDescription = "Console",
+                        modifier = Modifier.size(18.dp),
+                        tint = MinerColors.TwitchVioletGlow
                     )
                 }
 
@@ -192,44 +188,33 @@ fun LiveMinerConsoleCard(
                             }
                         } else {
                             items(logs, key = { it.id }) { entry ->
-                                val msgColor = when (entry.level) {
-                                    LogLevel.ERROR -> MinerColors.DangerRed
-                                    LogLevel.WARN -> MinerColors.WarningAmber
-                                    LogLevel.EVENT -> MinerColors.TextPrimary
-                                    else -> MinerColors.TextSecondary
+                                val (tag, tagColor) = when (entry.level) {
+                                    LogLevel.ERROR -> "ERR" to Color(0xFFF87171)
+                                    LogLevel.WARN -> "WRN" to Color(0xFFF5A623)
+                                    LogLevel.EVENT -> "DRP" to Color(0xFFC4A1FF)
+                                    LogLevel.INFO -> "INF" to Color(0xFF56CCF2)
+                                    LogLevel.DEBUG -> "DBG" to MinerColors.TextMuted
                                 }
-                                val hhmm = entry.timestamp.take(5)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = buildAnnotatedString {
-                                            withStyle(SpanStyle(color = MinerColors.TwitchViolet, fontWeight = FontWeight.Bold)) {
-                                                append("> ")
-                                            }
-                                            withStyle(SpanStyle(color = msgColor)) {
-                                                append(entry.message)
-                                            }
-                                        },
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        lineHeight = 16.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = hhmm,
-                                        color = androidx.compose.ui.graphics.Color(0xFF565A6E),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
-                                        lineHeight = 16.sp,
-                                        maxLines = 1
-                                    )
-                                }
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(SpanStyle(color = Color(0xFF565A6E))) {
+                                            append(entry.timestamp)
+                                            append(" ")
+                                        }
+                                        withStyle(SpanStyle(color = tagColor, fontWeight = FontWeight.SemiBold)) {
+                                            append(tag)
+                                            append(" ")
+                                        }
+                                        withStyle(SpanStyle(color = Color(0xFFD4D7E3))) {
+                                            append(entry.message)
+                                        }
+                                    },
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }

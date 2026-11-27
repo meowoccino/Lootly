@@ -123,11 +123,11 @@ fun ActiveBadgeCard(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Badge icon with Liquid Wave Fill + Title & Subtitle
+            // Badge icon with Liquid Wave Fill + Title + Auto/Pinned pill + Subtitle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -180,20 +180,53 @@ fun ActiveBadgeCard(
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
-                    val title = active?.badgeName ?: when (snapshot.runState) {
-                        MinerRunState.STANDBY_NO_BADGES -> "All Badges Earned"
-                        MinerRunState.STOPPED -> "Miner Stopped"
-                        else -> "Scanning Badges…"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val title = active?.badgeName ?: when (snapshot.runState) {
+                            MinerRunState.STANDBY_NO_BADGES -> "All Badges Earned"
+                            MinerRunState.STOPPED -> "Miner Stopped"
+                            else -> "Scanning Badges…"
+                        }
+                        Text(
+                            text = title,
+                            color = MinerColors.TextPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .clickable(enabled = !pinned.isNullOrBlank()) {
+                                    onPinBadge(null)
+                                },
+                            shape = RoundedCornerShape(999.dp),
+                            color = MinerColors.PanelRaised,
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (!pinned.isNullOrBlank()) {
+                                    MinerColors.TwitchViolet.copy(alpha = 0.55f)
+                                } else {
+                                    MinerColors.Hairline
+                                }
+                            )
+                        ) {
+                            Text(
+                                text = if (pinned.isNullOrBlank()) "Auto" else "Pinned",
+                                color = MinerColors.TwitchVioletGlow,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
                     }
-                    Text(
-                        text = title,
-                        color = MinerColors.TextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     val subtitle = if (active != null) {
                         buildString {
                             if (active.channelLogin.isNotBlank()) append(active.channelLogin)
@@ -219,7 +252,7 @@ fun ActiveBadgeCard(
                 }
             }
 
-            // Option A: Clean Pill Row (Eligible, Owned, Auto/Pinned)
+            // Single balanced action row: X Eligible + Pause/Resume + 360° Refresh
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -228,6 +261,7 @@ fun ActiveBadgeCard(
                 Surface(
                     modifier = Modifier
                         .weight(1f)
+                        .height(40.dp)
                         .clip(RoundedCornerShape(999.dp))
                         .clickable(enabled = sortedEligible.isNotEmpty()) {
                             queueExpanded = !queueExpanded
@@ -243,56 +277,66 @@ fun ActiveBadgeCard(
                         }
                     )
                 ) {
-                    Text(
-                        text = "${sortedEligible.size} Eligible",
-                        color = MinerColors.TextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(999.dp),
-                    color = MinerColors.PanelRaised,
-                    border = BorderStroke(1.dp, MinerColors.Hairline)
-                ) {
-                    Text(
-                        text = "${snapshot.ownedBadgeCount} Owned",
-                        color = MinerColors.TextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "${sortedEligible.size} Eligible",
+                            color = MinerColors.TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
 
                 Surface(
                     modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .clickable(enabled = !pinned.isNullOrBlank()) {
-                            onPinBadge(null)
+                        .clickable(enabled = snapshot.runState.isServiceActive, onClick = onTogglePause),
+                    shape = RoundedCornerShape(999.dp),
+                    color = MinerColors.TwitchViolet.copy(alpha = 0.20f),
+                    border = BorderStroke(1.dp, MinerColors.TwitchViolet.copy(alpha = 0.52f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = if (snapshot.runState.isPaused) "Resume" else "Pause",
+                            color = MinerColors.TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable {
+                            onForceRefreshBadges()
+                            scope.launch {
+                                refreshRotation.snapTo(0f)
+                                refreshRotation.animateTo(
+                                    targetValue = 360f,
+                                    animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
+                                )
+                            }
                         },
                     shape = RoundedCornerShape(999.dp),
                     color = MinerColors.PanelRaised,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (!pinned.isNullOrBlank()) {
-                            MinerColors.TwitchViolet.copy(alpha = 0.55f)
-                        } else {
-                            MinerColors.Hairline
-                        }
-                    )
+                    border = BorderStroke(1.dp, MinerColors.Hairline)
                 ) {
-                    Text(
-                        text = if (pinned.isNullOrBlank()) "Auto" else "Pinned",
-                        color = MinerColors.TwitchVioletGlow,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Refresh Badges",
+                            modifier = Modifier
+                                .size(18.dp)
+                                .rotate(refreshRotation.value),
+                            tint = MinerColors.TextSecondary
+                        )
+                    }
                 }
             }
 
@@ -349,62 +393,6 @@ fun ActiveBadgeCard(
                                 )
                             }
                         }
-                    }
-                }
-            }
-
-            // Pause Pill + 360° Spinning Refresh Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(enabled = snapshot.runState.isServiceActive, onClick = onTogglePause),
-                    shape = RoundedCornerShape(999.dp),
-                    color = MinerColors.TwitchViolet.copy(alpha = 0.20f),
-                    border = BorderStroke(1.dp, MinerColors.TwitchViolet.copy(alpha = 0.52f))
-                ) {
-                    Text(
-                        text = if (snapshot.runState.isPaused) "Resume" else "Pause",
-                        color = MinerColors.TextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(vertical = 10.dp)
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .size(width = 44.dp, height = 40.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable {
-                            onForceRefreshBadges()
-                            scope.launch {
-                                refreshRotation.snapTo(0f)
-                                refreshRotation.animateTo(
-                                    targetValue = 360f,
-                                    animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
-                                )
-                            }
-                        },
-                    shape = RoundedCornerShape(999.dp),
-                    color = MinerColors.PanelRaised,
-                    border = BorderStroke(1.dp, MinerColors.Hairline)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Refresh Badges",
-                            modifier = Modifier
-                                .size(18.dp)
-                                .rotate(refreshRotation.value),
-                            tint = MinerColors.TextSecondary
-                        )
                     }
                 }
             }
