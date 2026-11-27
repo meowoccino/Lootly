@@ -1,5 +1,6 @@
 package com.lootly.app.ui.dashboard
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
@@ -40,10 +40,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lootly.app.R
 import com.lootly.app.ui.components.ActiveBadgeCard
 import com.lootly.app.ui.components.AutoPauseCard
 import com.lootly.app.ui.components.LiveMinerConsoleCard
@@ -94,22 +96,14 @@ fun DashboardScreen(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MinerColors.TwitchViolet),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "L",
-                            color = MinerColors.Ground,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Image(
+                        painter = painterResource(id = R.mipmap.ic_launcher_fg_custom),
+                        contentDescription = "Lootly",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(34.dp)
+                    )
                     Text(
                         text = "Lootly",
                         color = MinerColors.TextPrimary,
