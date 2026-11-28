@@ -545,8 +545,12 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			if prog != nil && prog.RequiredMinutes > 0 {
 				bw.log.Info("Drop progress", "reward", prog.Reward, "streamer", existing.Username, "progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes))
 			}
+			initMin := 0
+			if prog != nil {
+				initMin = prog.WatchedMinutes
+			}
 			bw.mu.Lock()
-			bw.tracked[id] = badgeTracked{username: candidate.stream.Username, added: false}
+			bw.tracked[id] = badgeTracked{username: candidate.stream.Username, added: false, lastProgressMinutes: initMin}
 			bw.mu.Unlock()
 			reserved[strings.ToLower(candidate.stream.Username)] = true
 			used++
@@ -561,8 +565,12 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		if prog != nil && prog.RequiredMinutes > 0 {
 			bw.log.Info("Drop progress", "reward", prog.Reward, "streamer", s.Username, "progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes))
 		}
+		initMin := 0
+		if prog != nil {
+			initMin = prog.WatchedMinutes
+		}
 		bw.mu.Lock()
-		bw.tracked[id] = badgeTracked{username: candidate.stream.Username, added: true}
+		bw.tracked[id] = badgeTracked{username: candidate.stream.Username, added: true, lastProgressMinutes: initMin}
 		bw.mu.Unlock()
 		reserved[strings.ToLower(candidate.stream.Username)] = true
 		used++

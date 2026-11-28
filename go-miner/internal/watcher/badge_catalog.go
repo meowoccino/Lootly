@@ -572,7 +572,8 @@ type badgeInventoryCampaign struct {
 	Allow *struct {
 		IsEnabled bool `json:"isEnabled"`
 		Channels  []struct {
-			Name string `json:"name"`
+			Name  string `json:"name"`
+			Login string `json:"login"`
 		} `json:"channels"`
 	} `json:"allow"`
 	Drops []badgeInventoryDrop `json:"timeBasedDrops"`
@@ -643,6 +644,9 @@ func mergeInventoryAndDashboardCampaigns(inventory, dashboard []badgeInventoryCa
 			}
 			if existing.Status == "" && c.Status != "" {
 				existing.Status = c.Status
+			}
+			if existing.Allow == nil && c.Allow != nil {
+				existing.Allow = c.Allow
 			}
 			if len(existing.Drops) == 0 && len(c.Drops) > 0 {
 				existing.Drops = c.Drops
@@ -788,8 +792,12 @@ func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 		var channels []string
 		if camp.Allow != nil {
 			for _, ch := range camp.Allow.Channels {
-				if ch.Name != "" {
-					channels = appendUnique(channels, ch.Name)
+				login := strings.TrimSpace(ch.Name)
+				if login == "" {
+					login = strings.TrimSpace(ch.Login)
+				}
+				if login != "" {
+					channels = appendUnique(channels, login)
 				}
 			}
 		}
