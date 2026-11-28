@@ -395,24 +395,29 @@ fun ActiveBadgeCard(
                 matched?.let { "${it.campaignName}::${it.badgeName}" }
             }
 
-            AnimatedVisibility(
-                visible = eligibleExpanded && sortedEligible.isNotEmpty(),
-                enter = fadeIn(tween(140)) + expandVertically(tween(180, easing = FastOutSlowInEasing)),
-                exit = fadeOut(tween(100)) + shrinkVertically(tween(150, easing = FastOutSlowInEasing))
-            ) {
-                val listHeight = minOf(sortedEligible.size * 58, 220).dp
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        thickness = 1.dp,
-                        color = Color(0xFF32364A)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
+            val targetListHeight = if (eligibleExpanded && sortedEligible.isNotEmpty()) {
+                minOf(sortedEligible.size * 58, 220).dp
+            } else {
+                0.dp
+            }
+            val animatedListHeight by androidx.compose.animation.core.animateDpAsState(
+                targetValue = targetListHeight,
+                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
+                label = "eligibleListHeight"
+            )
+
+            if (animatedListHeight > 0.dp && sortedEligible.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(animatedListHeight)
+                        .clipToBounds()
+                ) {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(listHeight)
-                            .clipToBounds()
+                            .height(minOf(sortedEligible.size * 58, 220).dp)
+                            .padding(top = 6.dp)
                     ) {
                         itemsIndexed(
                             items = sortedEligible,
