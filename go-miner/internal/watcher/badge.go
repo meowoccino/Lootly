@@ -68,6 +68,7 @@ type BadgeWatcher struct {
 	blacklist       map[string]bool
 	defaults        *model.StreamerSettings
 	tracked         map[string]badgeTracked
+	lastEligible    map[string]badgeCampaign
 	channelIDs      map[string]string
 	campaigns       []badgeCampaign
 	catalogLoadedAt time.Time
@@ -93,6 +94,7 @@ func NewBadgeWatcher(cfg config.BadgeWatcherConfig, gqlClient badgeGQL, httpClie
 		blacklist:     b,
 		defaults:      defaults,
 		tracked:       make(map[string]badgeTracked),
+		lastEligible:  make(map[string]badgeCampaign),
 		channelIDs:    make(map[string]string),
 		badgesEnabled: true,
 		dropsEnabled:  true,
@@ -158,6 +160,9 @@ func (bw *BadgeWatcher) Run(ctx context.Context, add func(context.Context, *mode
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	progressTicker := time.NewTicker(60 * time.Second)
+	defer progressTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -166,9 +171,70 @@ func (bw *BadgeWatcher) Run(ctx context.Context, add func(context.Context, *mode
 			return ctx.Err()
 		case <-ticker.C:
 			bw.evaluate(ctx, add, remove, get)
+		case <-progressTicker.C:
+			bw.syncTrackedProgress(ctx, get)
 		case <-bw.refreshCh:
 			bw.evaluate(ctx, add, remove, get)
 		}
+	}
+}
+
+func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, get func() []*model.Streamer) {
+	bw.mu.Lock()
+	if len(bw.tracked) == 0 {
+		bw.mu.Unlock()
+		return
+	}
+	trackedCopy := make(map[string]badgeTracked, len(bw.tracked))
+	for k, v := range bw.tracked {
+		trackedCopy[k] = v
+	}
+	eligibleCopy := make(map[string]badgeCampaign, len(bw.lastEligible))
+	for k, v := range bw.lastEligible {
+		eligibleCopy[k] = v
+	}
+	bw.mu.Unlock()
+
+	raw, err := bw.gql.GetDropsInventory(ctx)
+	if err != nil {
+		return
+	}
+	var inventory struct {
+		Campaigns []badgeInventoryCampaign `json:"dropCampaignsInProgress"`
+	}
+	if err := json.Unmarshal(raw, &inventory); err != nil {
+		return
+	}
+
+	streamers := get()
+	shouldRefresh := false
+	for id, tr := range trackedCopy {
+		camp, ok := eligibleCopy[id]
+		if !ok {
+			continue
+		}
+		streamer := findStreamer(streamers, tr.username)
+		if streamer == nil {
+			continue
+		}
+		prog := campaignDropProgress(camp, inventory.Campaigns)
+		if prog == nil || prog.RequiredMinutes <= 0 {
+			continue
+		}
+		streamer.Mu.Lock()
+		streamer.ActiveBadgeDrop = prog
+		streamer.Mu.Unlock()
+		bw.log.Info("Drop progress",
+			"reward", prog.Reward,
+			"streamer", streamer.Username,
+			"progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes),
+		)
+		if prog.IsClaimable || prog.ProgressPercent >= 100 {
+			shouldRefresh = true
+		}
+	}
+	if shouldRefresh {
+		bw.TriggerRefresh()
 	}
 }
 
@@ -310,6 +376,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 
 	// Retire completed campaigns and stale channels before filling free slots.
 	bw.mu.Lock()
+	bw.lastEligible = eligible
 	for id, tr := range bw.tracked {
 		campaign, eligibleNow := eligible[id]
 		streamer := findStreamer(get(), tr.username)

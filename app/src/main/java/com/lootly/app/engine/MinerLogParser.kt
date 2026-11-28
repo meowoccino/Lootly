@@ -235,7 +235,11 @@ class MinerLogParser {
             )
             is ParsedMinerEvent.DropProgress -> Triple(
                 "Drop",
-                "${event.rewardName.ifBlank { "Badge" }} • ${event.percent}%",
+                if (event.requiredMinutes > 0) {
+                    "${event.rewardName.ifBlank { "Drop" }} · ${event.percent}% (${event.watchedMinutes}/${event.requiredMinutes}m)"
+                } else {
+                    "${event.rewardName.ifBlank { "Drop" }} · ${event.percent}%"
+                },
                 LogLevel.EVENT
             )
             is ParsedMinerEvent.DropClaimed -> Triple(
