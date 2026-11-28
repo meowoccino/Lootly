@@ -32,8 +32,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.FormatListBulleted
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WorkspacePremium
@@ -229,55 +235,20 @@ fun ActiveBadgeCard(
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        val title = active?.badgeName ?: when {
-                            snapshot.runState.isPaused -> "Paused"
-                            snapshot.runState == MinerRunState.STANDBY_NO_BADGES -> "All Caught Up"
-                            snapshot.runState == MinerRunState.STOPPED -> "Miner Stopped"
-                            else -> "Scanning…"
-                        }
-                        Text(
-                            text = title,
-                            color = MinerColors.TextPrimary,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val isManual = !pinned.isNullOrBlank()
-                        val modeBg by animateColorAsState(
-                            targetValue = if (isManual) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
-                            label = "modeBg"
-                        )
-                        val modeBorder by animateColorAsState(
-                            targetValue = if (isManual) Color(0xFF9146FF) else Color(0xFF2B2E40),
-                            label = "modeBorder"
-                        )
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .clickable(enabled = isManual) {
-                                    onPinBadge(null)
-                                },
-                            shape = RoundedCornerShape(999.dp),
-                            color = modeBg,
-                            border = BorderStroke(width = 1.dp, color = modeBorder)
-                        ) {
-                            Text(
-                                text = if (isManual) "Manual" else "Auto",
-                                color = Color(0xFFE6E8F0),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
+                    val title = active?.badgeName ?: when {
+                        snapshot.runState.isPaused -> "Paused"
+                        snapshot.runState == MinerRunState.STANDBY_NO_BADGES -> "All Caught Up"
+                        snapshot.runState == MinerRunState.STOPPED -> "Miner Stopped"
+                        else -> "Scanning…"
                     }
+                    Text(
+                        text = title,
+                        color = MinerColors.TextPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Spacer(modifier = Modifier.height(3.dp))
                     val subtitle = if (active != null) {
                         buildString {
@@ -305,84 +276,83 @@ fun ActiveBadgeCard(
                 }
             }
 
-            // Single balanced action row: X Eligible + Pause/Resume + 360° Refresh
-            val eligibleBg by animateColorAsState(
-                targetValue = if (eligibleExpanded) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
-                label = "eligibleBg"
+            // Clean bare icon action bar
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = Color(0xFF222534)
             )
-            val eligibleBorder by animateColorAsState(
-                targetValue = if (eligibleExpanded) Color(0xFF9146FF) else Color(0xFF2B2E40),
-                label = "eligibleBorder"
+
+            val isManual = !pinned.isNullOrBlank()
+            val activeTint = Color(0xFFC4A1FF)
+            val idleTint = Color(0xFF8B90A5)
+
+            val eligibleTint by animateColorAsState(
+                targetValue = if (eligibleExpanded) activeTint else idleTint,
+                label = "eligibleTint"
             )
-            val pauseBg by animateColorAsState(
-                targetValue = if (snapshot.runState.isPaused) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
-                label = "pauseBg"
+            val pauseTint by animateColorAsState(
+                targetValue = if (snapshot.runState.isPaused) activeTint else idleTint,
+                label = "pauseTint"
             )
-            val pauseBorder by animateColorAsState(
-                targetValue = if (snapshot.runState.isPaused) Color(0xFF9146FF) else Color(0xFF2B2E40),
-                label = "pauseBorder"
-            )
-            val refreshBg by animateColorAsState(
-                targetValue = if (refreshRotation.isRunning) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
-                label = "refreshBg"
-            )
-            val refreshBorder by animateColorAsState(
-                targetValue = if (refreshRotation.isRunning) Color(0xFF9146FF) else Color(0xFF2B2E40),
-                label = "refreshBorder"
+            val refreshTint by animateColorAsState(
+                targetValue = if (refreshRotation.isRunning) activeTint else idleTint,
+                label = "refreshTint"
             )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(enabled = sortedEligible.isNotEmpty(), onClick = onToggleEligible),
-                    shape = RoundedCornerShape(999.dp),
-                    color = eligibleBg,
-                    border = BorderStroke(width = 1.dp, color = eligibleBorder)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        val eligibleCount = sortedEligible.size
-                        Text(
-                            text = "$eligibleCount Eligible",
-                            color = Color(0xFFE6E8F0),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(enabled = snapshot.runState.isServiceActive, onClick = onTogglePause),
-                    shape = RoundedCornerShape(999.dp),
-                    color = pauseBg,
-                    border = BorderStroke(1.dp, pauseBorder)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = if (snapshot.runState.isPaused) "Resume" else "Pause",
-                            color = Color(0xFFE6E8F0),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                Surface(
+                Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(999.dp))
+                        .clip(CircleShape)
+                        .clickable(enabled = sortedEligible.isNotEmpty(), onClick = onToggleEligible),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.FormatListBulleted,
+                        contentDescription = "Eligible",
+                        modifier = Modifier.size(21.dp),
+                        tint = eligibleTint
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = isManual) { onPinBadge(null) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isManual) Icons.Rounded.PushPin else Icons.Rounded.AutoAwesome,
+                        contentDescription = if (isManual) "Manual Mode" else "Auto Mode",
+                        modifier = Modifier.size(20.dp),
+                        tint = activeTint
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = snapshot.runState.isServiceActive, onClick = onTogglePause),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (snapshot.runState.isPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                        contentDescription = if (snapshot.runState.isPaused) "Resume" else "Pause",
+                        modifier = Modifier.size(22.dp),
+                        tint = pauseTint
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
                         .clickable {
                             onForceRefreshBadges()
                             scope.launch {
@@ -393,20 +363,16 @@ fun ActiveBadgeCard(
                                 )
                             }
                         },
-                    shape = RoundedCornerShape(999.dp),
-                    color = refreshBg,
-                    border = BorderStroke(1.dp, refreshBorder)
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Refresh Badges",
-                            modifier = Modifier
-                                .size(18.dp)
-                                .rotate(refreshRotation.value),
-                            tint = Color(0xFFE6E8F0)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Refresh",
+                        modifier = Modifier
+                            .size(21.dp)
+                            .rotate(refreshRotation.value),
+                        tint = refreshTint
+                    )
                 }
             }
 

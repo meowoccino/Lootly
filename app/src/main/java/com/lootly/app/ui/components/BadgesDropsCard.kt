@@ -122,7 +122,7 @@ private fun BareControlIcon(
             imageVector = icon,
             contentDescription = contentDescription,
             modifier = Modifier.size(21.dp),
-            tint = if (enabled) Color(0xFFE6E8F0) else Color(0xFF4B4F63)
+            tint = if (enabled) Color(0xFFC4A1FF) else Color(0xFF4B4F63)
         )
     }
 }

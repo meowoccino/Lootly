@@ -82,7 +82,7 @@ fun LiveMinerConsoleCard(
                     imageVector = Icons.Rounded.Terminal,
                     contentDescription = "Console",
                     modifier = Modifier.size(19.dp),
-                    tint = Color(0xFF8B90A5)
+                    tint = Color(0xFFC4A1FF)
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
