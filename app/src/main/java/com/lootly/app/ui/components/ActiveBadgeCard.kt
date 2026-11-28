@@ -5,6 +5,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -391,7 +395,12 @@ fun ActiveBadgeCard(
                 matched?.let { "${it.campaignName}::${it.badgeName}" }
             }
 
-            AnimatedVisibility(visible = eligibleExpanded && sortedEligible.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = eligibleExpanded && sortedEligible.isNotEmpty(),
+                enter = fadeIn(tween(140)) + expandVertically(tween(180, easing = FastOutSlowInEasing)),
+                exit = fadeOut(tween(100)) + shrinkVertically(tween(150, easing = FastOutSlowInEasing))
+            ) {
+                val listHeight = minOf(sortedEligible.size * 58, 220).dp
                 Column(modifier = Modifier.fillMaxWidth()) {
                     HorizontalDivider(
                         thickness = 0.5.dp,
@@ -401,7 +410,7 @@ fun ActiveBadgeCard(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 220.dp)
+                            .height(listHeight)
                             .clipToBounds()
                     ) {
                         itemsIndexed(
