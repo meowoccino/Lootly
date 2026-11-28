@@ -216,7 +216,7 @@ fun LiveMinerConsoleCard(
                                         lineHeight = 16.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
-                                        modifier = Modifier.width(30.dp)
+                                        modifier = Modifier.width(36.dp)
                                     )
                                     Text(
                                         text = entry.message,

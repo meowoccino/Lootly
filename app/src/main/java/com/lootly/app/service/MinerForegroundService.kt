@@ -83,6 +83,12 @@ class MinerForegroundService : Service() {
                 serviceScope.launch { handlePinBadge(campaign) }
                 return START_STICKY
             }
+            ACTION_SET_FILTERS -> {
+                val badges = intent.getBooleanExtra(EXTRA_BADGES, true)
+                val drops = intent.getBooleanExtra(EXTRA_DROPS, true)
+                serviceScope.launch { processManager?.setFilters(badges, drops) }
+                return START_STICKY
+            }
             ACTION_START, null -> {
                 startMiningSession()
                 return START_STICKY
@@ -429,7 +435,10 @@ class MinerForegroundService : Service() {
         const val ACTION_TOGGLE_PAUSE = "com.lootly.app.action.TOGGLE_PAUSE"
         const val ACTION_FORCE_REFRESH = "com.lootly.app.action.FORCE_REFRESH"
         const val ACTION_PIN_BADGE = "com.lootly.app.action.PIN_BADGE"
+        const val ACTION_SET_FILTERS = "com.lootly.app.action.SET_FILTERS"
         const val EXTRA_CAMPAIGN = "extra_campaign"
+        const val EXTRA_BADGES = "extra_badges"
+        const val EXTRA_DROPS = "extra_drops"
         private const val API_POLL_INTERVAL_MS = 10_000L
 
         fun start(context: Context) {
@@ -449,6 +458,15 @@ class MinerForegroundService : Service() {
 
         fun forceRefreshBadges(context: Context) {
             val intent = Intent(context, MinerForegroundService::class.java).apply { action = ACTION_FORCE_REFRESH }
+            runCatching { context.startService(intent) }
+        }
+
+        fun setFilters(context: Context, badges: Boolean, drops: Boolean) {
+            val intent = Intent(context, MinerForegroundService::class.java).apply {
+                action = ACTION_SET_FILTERS
+                putExtra(EXTRA_BADGES, badges)
+                putExtra(EXTRA_DROPS, drops)
+            }
             runCatching { context.startService(intent) }
         }
 

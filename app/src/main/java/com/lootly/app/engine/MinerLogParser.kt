@@ -77,6 +77,9 @@ class MinerLogParser {
         }
 
         val event = extractEvent(msg, json)
+        if (event is ParsedMinerEvent.BadgeCampaignEligible) {
+            return ParsedLogResult(logEntry = null, event = event)
+        }
         val (category, formattedMsg, logLevel) = formatForConsole(levelStr, msg, json, event)
         return ParsedLogResult(
             logEntry = LogEntry(
@@ -227,7 +230,7 @@ class MinerLogParser {
             )
             is ParsedMinerEvent.BadgeEvaluated -> Triple(
                 "Badge",
-                "Scan complete • ${event.eligibleCount} eligible, ${event.activeCount} active, ${event.ownedBadgesCount} owned",
+                "Scan complete · ${event.eligibleCount} eligible, ${event.activeCount} active",
                 LogLevel.INFO
             )
             is ParsedMinerEvent.DropProgress -> Triple(
@@ -242,7 +245,7 @@ class MinerLogParser {
             )
             is ParsedMinerEvent.WatchPaused -> Triple(
                 "Pause",
-                "Watch heartbeats paused (${event.reason})",
+                "Paused (${event.reason})",
                 LogLevel.WARN
             )
             is ParsedMinerEvent.WatchResumed -> Triple(

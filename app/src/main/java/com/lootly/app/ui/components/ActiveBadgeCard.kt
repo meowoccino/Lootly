@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -78,6 +79,8 @@ fun ActiveBadgeCard(
     onForceRefreshBadges: () -> Unit,
     onTogglePause: () -> Unit,
     onPinBadge: (String?) -> Unit = {},
+    badgesEnabled: Boolean = true,
+    dropsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val active = snapshot.activeCampaign
@@ -85,11 +88,11 @@ fun ActiveBadgeCard(
     val isPaused = snapshot.runState.isPaused || !snapshot.runState.isServiceActive
 
     var showEligibleSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val refreshRotation = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
-    val sortedEligible = remember(snapshot.eligibleBadges, snapshot.activeCampaign, pinned) {
+    val sortedEligible = remember(snapshot.eligibleBadges, snapshot.activeCampaign, pinned, badgesEnabled, dropsEnabled) {
         val base = snapshot.eligibleBadges.ifEmpty {
             val c = snapshot.activeCampaign
             if (c != null) {
@@ -106,13 +109,17 @@ fun ActiveBadgeCard(
             } else {
                 emptyList()
             }
+        }.filter { item ->
+            if (item.isDrop) dropsEnabled else badgesEnabled
         }
         base.sortedWith(
             compareByDescending<EligibleBadgeItem> {
                 !pinned.isNullOrBlank() &&
                     (it.badgeName.equals(pinned, ignoreCase = true) ||
                         it.campaignName.equals(pinned, ignoreCase = true))
-            }.thenBy { it.endsAtIso.ifBlank { "9999-12-31T23:59:59Z" } }
+            }.thenByDescending { it.isLinked }
+                .thenBy { it.isDrop }
+                .thenBy { it.endsAtIso.ifBlank { "9999-12-31T23:59:59Z" } }
                 .thenBy { it.requiredMinutes }
         )
     }
@@ -250,7 +257,7 @@ fun ActiveBadgeCard(
                             )
                         ) {
                             Text(
-                                text = if (pinned.isNullOrBlank()) "Auto" else "Pinned",
+                                text = if (pinned.isNullOrBlank()) "Auto" else "Manual",
                                 color = MinerColors.TwitchVioletGlow,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -311,7 +318,7 @@ fun ActiveBadgeCard(
                     )
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        val eligibleCount = maxOf(sortedEligible.size, snapshot.eligibleCampaignCount)
+                        val eligibleCount = sortedEligible.size
                         Text(
                             text = "$eligibleCount Eligible",
                             color = MinerColors.TextPrimary,
@@ -381,8 +388,9 @@ fun ActiveBadgeCard(
         ModalBottomSheet(
             onDismissRequest = { showEligibleSheet = false },
             sheetState = sheetState,
-            containerColor = MinerColors.Panel,
-            contentColor = MinerColors.TextPrimary
+            containerColor = Color(0xFF14161F),
+            contentColor = MinerColors.TextPrimary,
+            contentWindowInsets = { WindowInsets(0) }
         ) {
             LazyColumn(
                 modifier = Modifier

@@ -71,6 +71,9 @@ type BadgeWatcher struct {
 	channelIDs      map[string]string
 	campaigns       []badgeCampaign
 	catalogLoadedAt time.Time
+	pinnedCampaign  string
+	badgesEnabled   bool
+	dropsEnabled    bool
 }
 
 func NewBadgeWatcher(cfg config.BadgeWatcherConfig, gqlClient badgeGQL, httpClient *http.Client, log *logger.Logger, blacklist []string, defaults *model.StreamerSettings) *BadgeWatcher {
@@ -81,7 +84,53 @@ func NewBadgeWatcher(cfg config.BadgeWatcherConfig, gqlClient badgeGQL, httpClie
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 20 * time.Second}
 	}
-	return &BadgeWatcher{cfg: cfg, gql: gqlClient, httpClient: httpClient, log: log, blacklist: b, defaults: defaults, tracked: make(map[string]badgeTracked), channelIDs: make(map[string]string)}
+	return &BadgeWatcher{
+		cfg:           cfg,
+		gql:           gqlClient,
+		httpClient:    httpClient,
+		log:           log,
+		blacklist:     b,
+		defaults:      defaults,
+		tracked:       make(map[string]badgeTracked),
+		channelIDs:    make(map[string]string),
+		badgesEnabled: true,
+		dropsEnabled:  true,
+	}
+}
+
+// SetPinnedCampaign pins a specific badge or linked drop campaign for manual
+// targeting (empty string resets to Auto priority).
+func (bw *BadgeWatcher) SetPinnedCampaign(campaign string) {
+	bw.mu.Lock()
+	bw.pinnedCampaign = strings.TrimSpace(campaign)
+	bw.mu.Unlock()
+}
+
+// PinnedCampaign returns the currently pinned campaign name (empty when Auto).
+func (bw *BadgeWatcher) PinnedCampaign() string {
+	bw.mu.Lock()
+	defer bw.mu.Unlock()
+	return bw.pinnedCampaign
+}
+
+// SetFilters updates whether global badges and/or in-game drops are enabled.
+func (bw *BadgeWatcher) SetFilters(badges, drops bool) {
+	bw.mu.Lock()
+	bw.badgesEnabled = badges
+	bw.dropsEnabled = drops
+	bw.mu.Unlock()
+}
+
+func matchesBadgePin(c badgeCampaign, pinned string) bool {
+	if strings.EqualFold(c.ID, pinned) || strings.EqualFold(c.Name, pinned) {
+		return true
+	}
+	for _, b := range c.BadgeNames {
+		if strings.EqualFold(b, pinned) {
+			return true
+		}
+	}
+	return false
 }
 
 func (bw *BadgeWatcher) Run(ctx context.Context, add func(context.Context, *model.Streamer), remove func(string, string), get func() []*model.Streamer) error {
@@ -116,49 +165,88 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		bw.log.Warn("Failed to parse badge reward progress", "error", err)
 		return
 	}
+	bw.mu.Lock()
+	badgesOn := bw.badgesEnabled
+	dropsOn := bw.dropsEnabled
+	pinned := bw.pinnedCampaign
+	bw.mu.Unlock()
+
 	now := time.Now()
 	rewards := make(map[string]model.RewardDeadline, len(campaigns))
 	eligible := make(map[string]badgeCampaign)
 	eligibleOrdered := make([]badgeCampaign, 0, len(campaigns))
-	for _, c := range campaigns {
-		if c.EndsAt.After(now) && !ownsCampaignBadge(c, owned) && !campaignCompleted(c, completed) {
-			eligible[c.ID] = c
-			eligibleOrdered = append(eligibleOrdered, c)
-			rewards[c.ID] = c.nextReward(owned, inventory.Campaigns, now)
+	if badgesOn {
+		for _, c := range campaigns {
+			if c.EndsAt.After(now) && !ownsCampaignBadge(c, owned) && !campaignCompleted(c, completed) {
+				eligible[c.ID] = c
+				eligibleOrdered = append(eligibleOrdered, c)
+				rewards[c.ID] = c.nextReward(owned, inventory.Campaigns, now)
+			}
 		}
 	}
 	allInventoryCampaigns := inventory.Campaigns
 	var dashActive int
-	if dashGQL, ok := bw.gql.(dropsDashboardGQL); ok {
-		if rawDash, err := dashGQL.GetDropsDashboard(ctx, "ACTIVE"); err != nil {
-			bw.log.Warn("Failed to load ViewerDropsDashboard for in-game drops", "error", err)
-		} else {
-			var dashCampaigns []badgeInventoryCampaign
-			dashCampaigns, dashActive, _ = parseDashboardDropCampaigns(rawDash)
-			allInventoryCampaigns = mergeInventoryAndDashboardCampaigns(inventory.Campaigns, dashCampaigns)
-		}
-	}
 	var (
 		unlinkedDrops []badgeCampaign
 		linkedCount   int
 		unlinkedCount int
 	)
-	for _, c := range allActiveInGameDropCampaigns(allInventoryCampaigns, now) {
-		if _, exists := eligible[c.ID]; exists || campaignCompleted(c, completed) {
-			continue
+	if dropsOn {
+		if dashGQL, ok := bw.gql.(dropsDashboardGQL); ok {
+			if rawDash, err := dashGQL.GetDropsDashboard(ctx, "ACTIVE"); err != nil {
+				bw.log.Warn("Failed to load ViewerDropsDashboard for in-game drops", "error", err)
+			} else {
+				var dashCampaigns []badgeInventoryCampaign
+				dashCampaigns, dashActive, _ = parseDashboardDropCampaigns(rawDash)
+				allInventoryCampaigns = mergeInventoryAndDashboardCampaigns(inventory.Campaigns, dashCampaigns)
+			}
 		}
-		if c.IsLinked {
-			eligible[c.ID] = c
-			eligibleOrdered = append(eligibleOrdered, c)
-			rewards[c.ID] = c.nextReward(nil, allInventoryCampaigns, now)
-			linkedCount++
-		} else {
-			unlinkedDrops = append(unlinkedDrops, c)
-			unlinkedCount++
+		for _, c := range allActiveInGameDropCampaigns(allInventoryCampaigns, now) {
+			if _, exists := eligible[c.ID]; exists || campaignCompleted(c, completed) {
+				continue
+			}
+			if c.IsLinked {
+				eligible[c.ID] = c
+				eligibleOrdered = append(eligibleOrdered, c)
+				rewards[c.ID] = c.nextReward(nil, allInventoryCampaigns, now)
+				linkedCount++
+			} else {
+				unlinkedDrops = append(unlinkedDrops, c)
+				unlinkedCount++
+			}
 		}
 	}
 	bw.log.Info("In-game drops scanned", "active", dashActive, "linked", linkedCount, "unlinked", unlinkedCount)
+
+	// Auto-advance: if the pinned/manual campaign completed or is no longer eligible,
+	// clear the pin so Auto priority advances to the next earliest-expiring item.
+	if pinned != "" {
+		pinStillEligible := false
+		for _, c := range eligibleOrdered {
+			if matchesBadgePin(c, pinned) {
+				pinStillEligible = true
+				break
+			}
+		}
+		if !pinStillEligible {
+			bw.mu.Lock()
+			if strings.EqualFold(bw.pinnedCampaign, pinned) {
+				bw.pinnedCampaign = ""
+			}
+			bw.mu.Unlock()
+			pinned = ""
+			bw.log.Info("Pinned campaign completed or unavailable, returning to Auto")
+		}
+	}
+
 	sort.SliceStable(eligibleOrdered, func(i, j int) bool {
+		if pinned != "" {
+			pi := matchesBadgePin(eligibleOrdered[i], pinned)
+			pj := matchesBadgePin(eligibleOrdered[j], pinned)
+			if pi != pj {
+				return pi
+			}
+		}
 		if eligibleOrdered[i].IsInGameDrop != eligibleOrdered[j].IsInGameDrop {
 			return !eligibleOrdered[i].IsInGameDrop
 		}
@@ -177,6 +265,12 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			return ri < rj
 		}
 		return eligibleOrdered[i].Name < eligibleOrdered[j].Name
+	})
+	sort.SliceStable(unlinkedDrops, func(i, j int) bool {
+		if !unlinkedDrops[i].EndsAt.Equal(unlinkedDrops[j].EndsAt) {
+			return unlinkedDrops[i].EndsAt.Before(unlinkedDrops[j].EndsAt)
+		}
+		return unlinkedDrops[i].Name < unlinkedDrops[j].Name
 	})
 
 	// Retire completed campaigns and stale channels before filling free slots.

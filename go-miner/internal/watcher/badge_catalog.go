@@ -554,6 +554,7 @@ func watchRequirement(requirement string) time.Duration {
 type badgeInventoryCampaign struct {
 	ID             string    `json:"id"`
 	Name           string    `json:"name"`
+	Description    string    `json:"description"`
 	Status         string    `json:"status"`
 	StartAt        time.Time `json:"startAt"`
 	EndAt          time.Time `json:"endAt"`
@@ -563,6 +564,7 @@ type badgeInventoryCampaign struct {
 		Slug        string `json:"slug"`
 		Name        string `json:"name"`
 		DisplayName string `json:"displayName"`
+		BoxArtURL   string `json:"boxArtURL"`
 	} `json:"game"`
 	Self *struct {
 		IsAccountConnected bool `json:"isAccountConnected"`
@@ -660,6 +662,32 @@ func mergeInventoryAndDashboardCampaigns(inventory, dashboard []badgeInventoryCa
 
 const defaultDropsCampaignsURL = "https://www.twitch.tv/drops/campaigns"
 
+// paidDropCampaignRE rejects sub-only, gift, bits, paid, or evolving drop
+// campaigns (including known sub-only badge campaigns) so only strictly free
+// watch-to-earn drops appear.
+var paidDropCampaignRE = regexp.MustCompile(
+	`(?i)(?:\b(?:subs?|subscrib(?:e[ds]?|ing|ers?)|subbing|subscriptions?|gift(?:s|ed|ing)?|bits|cheer(?:s|ed|ing)?|paid|purchas(?:e[ds]?|ing)|evolv(?:e[ds]?|ing)|evolutions?)\b|warrior\s+jar\s+alexander|horde\s+and\s+alliance\s+badges?|doom:\s*the\s+dark\s+ages\s+badge|gallica\s+badge)`,
+)
+
+func isPaidOrSubDropCampaign(camp badgeInventoryCampaign) bool {
+	if paidDropCampaignRE.MatchString(camp.Name) || paidDropCampaignRE.MatchString(camp.Description) {
+		return true
+	}
+	if len(camp.Drops) > 0 {
+		hasFreeWatchDrop := false
+		for _, d := range camp.Drops {
+			if d.RequiredSubs == 0 && d.RequiredMinutes > 0 {
+				hasFreeWatchDrop = true
+				break
+			}
+		}
+		if !hasFreeWatchDrop {
+			return true
+		}
+	}
+	return false
+}
+
 // allActiveInGameDropCampaigns extracts all active, unclaimed watch-time
 // in-game drop campaigns (both linked and unlinked) from the user's Twitch
 // inventory/dashboard. Linked campaigns have IsLinked=true and are eligible
@@ -668,7 +696,7 @@ const defaultDropsCampaignsURL = "https://www.twitch.tv/drops/campaigns"
 func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.Time) []badgeCampaign {
 	var out []badgeCampaign
 	for _, camp := range inventory {
-		if camp.ID == "" {
+		if camp.ID == "" || isPaidOrSubDropCampaign(camp) {
 			continue
 		}
 		if camp.Status != "" && !strings.EqualFold(camp.Status, "ACTIVE") {
@@ -743,6 +771,9 @@ func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 		}
 		if imageURL == "" {
 			imageURL = camp.ImageURL
+		}
+		if imageURL == "" && camp.Game.BoxArtURL != "" {
+			imageURL = strings.ReplaceAll(camp.Game.BoxArtURL, "{width}x{height}", "144x192")
 		}
 
 		gameName := camp.Game.DisplayName

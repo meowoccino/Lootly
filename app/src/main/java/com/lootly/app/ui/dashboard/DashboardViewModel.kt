@@ -149,10 +149,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onBadgesToggle(enabled: Boolean) {
         sessionStore.setBadgesEnabled(enabled)
+        MinerForegroundService.setFilters(getApplication(), enabled, sessionStore.dropsEnabled.value)
     }
 
     fun onDropsToggle(enabled: Boolean) {
         sessionStore.setDropsEnabled(enabled)
+        MinerForegroundService.setFilters(getApplication(), sessionStore.badgesEnabled.value, enabled)
     }
 
     fun onDismissUsageOnboarding() {

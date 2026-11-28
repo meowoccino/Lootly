@@ -116,7 +116,7 @@ class MinerNotificationManager(private val context: Context) {
             .addAction(0, if (snapshot.runState.isPaused) "Resume" else "Pause", togglePending)
             .addAction(0, "Stop", stopPending)
 
-        if (active != null) {
+        if (active != null && snapshot.runState == MinerRunState.MINING_ACTIVE) {
             builder.setSubText(active.progressSummary)
             builder.setProgress(100, active.computedPercent, false)
         } else if (snapshot.runState == MinerRunState.STARTING) {

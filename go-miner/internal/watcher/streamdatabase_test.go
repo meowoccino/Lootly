@@ -421,4 +421,22 @@ func TestConnectedInGameDropsFilteringAndPriority(t *testing.T) {
 	if linkedCnt != 2 || unlinkedCnt != 2 {
 		t.Fatalf("linked=%d unlinked=%d, want 2 and 2", linkedCnt, unlinkedCnt)
 	}
+
+	// Verify sub-only / paid drop campaigns are strictly rejected.
+	paidRaw := []json.RawMessage{
+		json.RawMessage(`{"id":"sub-1","name":"Sub Drop","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","self":{"isAccountConnected":true}}`),
+		json.RawMessage(`{"id":"sub-2","name":"Warrior Jar Alexander","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","self":{"isAccountConnected":true}}`),
+		json.RawMessage(`{"id":"sub-3","name":"Horde and Alliance Badges","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","self":{"isAccountConnected":true}}`),
+		json.RawMessage(`{"id":"sub-4","name":"DOOM: The Dark Ages Badge","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","self":{"isAccountConnected":true}}`),
+		json.RawMessage(`{"id":"sub-5","name":"Gallica Badge","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","self":{"isAccountConnected":true}}`),
+		json.RawMessage(`{"id":"free-boxart","name":"Free Watch Drop","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","game":{"slug":"rust","displayName":"Rust","boxArtURL":"https://cdn.example/box-{width}x{height}.jpg"},"self":{"isAccountConnected":true}}`),
+	}
+	paidParsed, _, _ := parseDashboardDropCampaigns(paidRaw)
+	filtered := allActiveInGameDropCampaigns(paidParsed, now)
+	if len(filtered) != 1 || filtered[0].ID != "free-boxart" {
+		t.Fatalf("expected only free-boxart, got %+v", filtered)
+	}
+	if filtered[0].BadgeImageURL != "https://cdn.example/box-144x192.jpg" {
+		t.Fatalf("expected boxArtURL fallback, got %q", filtered[0].BadgeImageURL)
+	}
 }

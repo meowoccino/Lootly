@@ -114,6 +114,7 @@ func NewAnalyticsServer(addr string, log *logger.Logger, auth *DashboardAuth, ap
 	mux.HandleFunc("POST /api/control/resume", s.handleControlResume)
 	mux.HandleFunc("POST /api/control/refresh-badges", s.handleControlRefreshBadges)
 	mux.HandleFunc("POST /api/control/pin-badge", s.handleControlPinBadge)
+	mux.HandleFunc("POST /api/control/set-filters", s.handleControlSetFilters)
 
 	mux.HandleFunc("GET /api/auth-status", s.handleAuthStatuses)
 	mux.HandleFunc("GET /api/auth-status/{username}", s.handleAuthStatus)

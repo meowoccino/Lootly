@@ -18,16 +18,19 @@ func TestControlEndpoints(t *testing.T) {
 	srv := NewAnalyticsServer("127.0.0.1:0", log, nil, "test-secret")
 
 	var (
-		pausedReason string
-		resumed      bool
-		refreshed    bool
-		pinned       string
+		pausedReason  string
+		resumed       bool
+		refreshed     bool
+		pinned        string
+		filterBadges  = true
+		filterDrops   = true
 	)
 	srv.SetControlHandlers(ControlHandlers{
 		OnPause:         func(reason string) { pausedReason = reason },
 		OnResume:        func() { resumed = true },
 		OnRefreshBadges: func() { refreshed = true },
 		OnPinBadge:      func(campaign string) { pinned = campaign },
+		OnSetFilters:    func(badges, drops bool) { filterBadges, filterDrops = badges, drops },
 	})
 
 	doPost := func(path string) *httptest.ResponseRecorder {
@@ -78,5 +81,11 @@ func TestControlEndpoints(t *testing.T) {
 	rec = doPost("/api/control/pin-badge?campaign=")
 	if rec.Code != http.StatusOK || pinned != "" {
 		t.Fatalf("reset pin failed: code=%d pinned=%q", rec.Code, pinned)
+	}
+
+	// Set filters endpoint.
+	rec = doPost("/api/control/set-filters?badges=true&drops=false")
+	if rec.Code != http.StatusOK || !filterBadges || filterDrops {
+		t.Fatalf("set-filters failed: code=%d badges=%v drops=%v", rec.Code, filterBadges, filterDrops)
 	}
 }

@@ -12,6 +12,7 @@ type ControlHandlers struct {
 	OnResume        func()
 	OnRefreshBadges func()
 	OnPinBadge      func(campaign string)
+	OnSetFilters    func(badges, drops bool)
 }
 
 // SetControlHandlers registers callbacks for /api/control/* endpoints.
@@ -90,5 +91,28 @@ func (s *AnalyticsServer) handleControlPinBadge(w http.ResponseWriter, r *http.R
 		"status":          "ok",
 		"mode":            mode,
 		"pinned_campaign": campaign,
+	})
+}
+
+func (s *AnalyticsServer) handleControlSetFilters(w http.ResponseWriter, r *http.Request) {
+	badges := !strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("badges")), "false")
+	drops := !strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("drops")), "false")
+	s.mu.RLock()
+	fn := s.control.OnSetFilters
+	refreshFn := s.control.OnRefreshBadges
+	s.mu.RUnlock()
+	if fn != nil {
+		fn(badges, drops)
+	}
+	if refreshFn != nil {
+		refreshFn()
+	}
+	if s.log != nil {
+		s.log.Info("Mining filters updated", "badges", badges, "drops", drops)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "ok",
+		"badges": badges,
+		"drops":  drops,
 	})
 }

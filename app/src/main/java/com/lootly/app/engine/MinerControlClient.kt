@@ -40,6 +40,11 @@ class MinerControlClient(
             postControl(port, apiKey, "/api/control/pin-badge?campaign=$encoded")
         }
 
+    suspend fun setFilters(port: Int, apiKey: String, badges: Boolean, drops: Boolean): Boolean =
+        withContext(Dispatchers.IO) {
+            postControl(port, apiKey, "/api/control/set-filters?badges=$badges&drops=$drops")
+        }
+
     suspend fun fetchActiveBadgeCampaign(port: Int, apiKey: String): ActiveBadgeCampaign? =
         withContext(Dispatchers.IO) {
             if (port <= 0) return@withContext null

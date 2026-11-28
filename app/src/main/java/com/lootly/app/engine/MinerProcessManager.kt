@@ -185,6 +185,11 @@ class MinerProcessManager(
         return controlClient.pinBadge(analyticsPort, apiKey, campaign)
     }
 
+    suspend fun setFilters(badges: Boolean, drops: Boolean): Boolean {
+        if (!isRunning || sigStopped.get()) return false
+        return controlClient.setFilters(analyticsPort, apiKey, badges, drops)
+    }
+
     fun stop() {
         val proc = process
         process = null

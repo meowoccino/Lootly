@@ -188,7 +188,9 @@ fun DashboardScreen(
                 snapshot = uiState.minerStatus,
                 onForceRefreshBadges = onForceRefreshBadges,
                 onTogglePause = onTogglePause,
-                onPinBadge = onPinBadge
+                onPinBadge = onPinBadge,
+                badgesEnabled = uiState.badgesEnabled,
+                dropsEnabled = uiState.dropsEnabled
             )
 
             BadgesDropsCard(
