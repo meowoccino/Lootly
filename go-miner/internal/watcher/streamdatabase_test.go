@@ -328,3 +328,63 @@ func TestBlastoiseRejectedAcrossAllSources(t *testing.T) {
 		t.Fatalf("badgeTitlesForWatchReward accepted live Pikachu entry: %v", pikaMatches)
 	}
 }
+
+func TestConnectedInGameDropsFilteringAndPriority(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+
+	makeInv := func(id, name, status string, connected bool, endOffset time.Duration, reqMin, watchedMin int, claimed bool, img string) badgeInventoryCampaign {
+		c := badgeInventoryCampaign{
+			ID:     id,
+			Name:   name,
+			Status: status,
+			EndAt:  now.Add(endOffset),
+		}
+		c.Game.Name = "Apex Legends"
+		c.Game.Slug = "apex-legends"
+		c.Self = &struct {
+			IsAccountConnected bool `json:"isAccountConnected"`
+		}{IsAccountConnected: connected}
+		d := badgeInventoryDrop{
+			Name:            name + " Drop",
+			RequiredMinutes: reqMin,
+			Self: &struct {
+				Minutes  int    `json:"currentMinutesWatched"`
+				Claimed  bool   `json:"isClaimed"`
+				Instance string `json:"dropInstanceID"`
+				Eligible bool   `json:"hasPreconditionsMet"`
+			}{Minutes: watchedMin, Claimed: claimed, Eligible: true},
+		}
+		d.Benefits = []struct {
+			Benefit struct {
+				Name          string `json:"name"`
+				ImageAssetURL string `json:"imageAssetURL"`
+			} `json:"benefit"`
+		}{{Benefit: struct {
+			Name          string `json:"name"`
+			ImageAssetURL string `json:"imageAssetURL"`
+		}{Name: name + " Reward", ImageAssetURL: img}}}
+		c.Drops = []badgeInventoryDrop{d}
+		return c
+	}
+
+	inventory := []badgeInventoryCampaign{
+		makeInv("linked-active", "Apex Weapon Charm", "ACTIVE", true, 24*time.Hour, 60, 15, false, "https://cdn.example/charm.png"),
+		makeInv("unlinked-active", "Unlinked Skin", "ACTIVE", false, 12*time.Hour, 30, 0, false, "https://cdn.example/unlinked.png"),
+		makeInv("linked-expired-status", "Inactive Drop", "EXPIRED", true, 24*time.Hour, 30, 0, false, "https://cdn.example/inactive.png"),
+		makeInv("linked-claimed", "Already Claimed", "ACTIVE", true, 24*time.Hour, 30, 30, true, "https://cdn.example/claimed.png"),
+	}
+
+	got := connectedInGameDropCampaigns(inventory, now)
+	if len(got) != 1 {
+		t.Fatalf("connectedInGameDropCampaigns returned %d campaigns, want 1: %+v", len(got), got)
+	}
+	if got[0].ID != "linked-active" || !got[0].IsInGameDrop {
+		t.Fatalf("unexpected campaign: %+v", got[0])
+	}
+	if got[0].BadgeImageURL != "https://cdn.example/charm.png" {
+		t.Fatalf("BadgeImageURL = %q, want charm.png", got[0].BadgeImageURL)
+	}
+	if got[0].WatchTimes["Apex Weapon Charm Reward"] != 45*time.Minute {
+		t.Fatalf("remaining WatchTime = %v, want 45m", got[0].WatchTimes["Apex Weapon Charm Reward"])
+	}
+}

@@ -123,11 +123,33 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			rewards[c.ID] = c.nextReward(owned, inventory.Campaigns, now)
 		}
 	}
-	sort.SliceStable(eligibleOrdered, func(i, j int) bool {
-		if eligibleOrdered[i].EndsAt.Equal(eligibleOrdered[j].EndsAt) {
-			return eligibleOrdered[i].Name < eligibleOrdered[j].Name
+	for _, c := range connectedInGameDropCampaigns(inventory.Campaigns, now) {
+		if _, exists := eligible[c.ID]; exists || campaignCompleted(c, completed) {
+			continue
 		}
-		return eligibleOrdered[i].EndsAt.Before(eligibleOrdered[j].EndsAt)
+		eligible[c.ID] = c
+		eligibleOrdered = append(eligibleOrdered, c)
+		rewards[c.ID] = c.nextReward(nil, inventory.Campaigns, now)
+	}
+	sort.SliceStable(eligibleOrdered, func(i, j int) bool {
+		if eligibleOrdered[i].IsInGameDrop != eligibleOrdered[j].IsInGameDrop {
+			return !eligibleOrdered[i].IsInGameDrop
+		}
+		if !eligibleOrdered[i].EndsAt.Equal(eligibleOrdered[j].EndsAt) {
+			return eligibleOrdered[i].EndsAt.Before(eligibleOrdered[j].EndsAt)
+		}
+		ri := rewards[eligibleOrdered[i].ID].Remaining
+		rj := rewards[eligibleOrdered[j].ID].Remaining
+		if ri != rj {
+			if ri == 0 {
+				return false
+			}
+			if rj == 0 {
+				return true
+			}
+			return ri < rj
+		}
+		return eligibleOrdered[i].Name < eligibleOrdered[j].Name
 	})
 
 	// Retire completed campaigns and stale channels before filling free slots.

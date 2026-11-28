@@ -1,6 +1,5 @@
 package com.lootly.app.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -17,22 +16,28 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WorkspacePremium
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +64,7 @@ import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveBadgeCard(
     snapshot: MinerStatusSnapshot,
@@ -71,7 +77,8 @@ fun ActiveBadgeCard(
     val pinned = snapshot.pinnedCampaign
     val isPaused = snapshot.runState.isPaused || !snapshot.runState.isServiceActive
 
-    var queueExpanded by remember { mutableStateOf(false) }
+    var showEligibleSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
     val refreshRotation = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
@@ -281,13 +288,13 @@ fun ActiveBadgeCard(
                         .height(40.dp)
                         .clip(RoundedCornerShape(999.dp))
                         .clickable(enabled = sortedEligible.isNotEmpty()) {
-                            queueExpanded = !queueExpanded
+                            showEligibleSheet = true
                         },
                     shape = RoundedCornerShape(999.dp),
                     color = MinerColors.PanelRaised,
                     border = BorderStroke(
                         width = 1.dp,
-                        color = if (queueExpanded) {
+                        color = if (showEligibleSheet) {
                             MinerColors.TwitchViolet.copy(alpha = 0.55f)
                         } else {
                             MinerColors.Hairline
@@ -357,85 +364,109 @@ fun ActiveBadgeCard(
                     }
                 }
             }
+        }
+    }
 
-            // Expandable Eligible Queue
-            AnimatedVisibility(visible = queueExpanded && sortedEligible.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    HorizontalDivider(thickness = 1.dp, color = MinerColors.Hairline)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    sortedEligible.forEach { item ->
-                        val isPinned = !pinned.isNullOrBlank() &&
-                            (item.badgeName.equals(pinned, ignoreCase = true) ||
-                                item.campaignName.equals(pinned, ignoreCase = true))
-                        Surface(
+    if (showEligibleSheet && sortedEligible.isNotEmpty()) {
+        ModalBottomSheet(
+            onDismissRequest = { showEligibleSheet = false },
+            sheetState = sheetState,
+            containerColor = MinerColors.Panel,
+            contentColor = MinerColors.TextPrimary
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = sortedEligible,
+                    key = { "${it.campaignName}::${it.badgeName}" }
+                ) { item ->
+                    val isPinned = !pinned.isNullOrBlank() &&
+                        (item.badgeName.equals(pinned, ignoreCase = true) ||
+                            item.campaignName.equals(pinned, ignoreCase = true))
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable {
+                                onPinBadge(if (isPinned) null else item.badgeName)
+                                showEligibleSheet = false
+                            },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MinerColors.PanelRaised,
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isPinned) {
+                                MinerColors.TwitchViolet.copy(alpha = 0.6f)
+                            } else {
+                                MinerColors.Hairline
+                            }
+                        )
+                    ) {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    onPinBadge(if (isPinned) null else item.badgeName)
-                                    queueExpanded = false
-                                },
-                            shape = RoundedCornerShape(16.dp),
-                            color = MinerColors.PanelRaised,
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (isPinned) {
-                                    MinerColors.TwitchViolet.copy(alpha = 0.6f)
-                                } else {
-                                    MinerColors.Hairline
-                                }
-                            )
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MinerColors.Ground),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MinerColors.Ground),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (!item.badgeImageUrl.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = item.badgeImageUrl,
-                                            contentDescription = item.badgeName,
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(RoundedCornerShape(6.dp))
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Rounded.WorkspacePremium,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MinerColors.TwitchVioletGlow
-                                        )
-                                    }
+                                if (!item.badgeImageUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = item.badgeImageUrl,
+                                        contentDescription = item.badgeName,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.WorkspacePremium,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MinerColors.TwitchVioletGlow
+                                    )
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = item.badgeName,
                                     color = MinerColors.TextPrimary,
-                                    fontSize = 12.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "${item.requiredMinutes}m",
-                                    color = MinerColors.TextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                val gameSubtitle = item.gameName.ifBlank { item.campaignName }
+                                if (gameSubtitle.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = gameSubtitle,
+                                        color = MinerColors.TextSecondary,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "${item.requiredMinutes}m",
+                                color = MinerColors.TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }

@@ -1,6 +1,5 @@
 package com.lootly.app.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,9 +10,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,12 +43,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lootly.app.data.model.LogEntry
@@ -60,9 +56,10 @@ import com.lootly.app.ui.theme.MinerColors
 fun LiveMinerConsoleCard(
     logs: List<LogEntry>,
     onClearLogs: () -> Unit,
+    expanded: Boolean = true,
+    onExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var expanded by remember { mutableStateOf(true) }
     var autoScroll by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
@@ -79,14 +76,17 @@ fun LiveMinerConsoleCard(
         color = MinerColors.Panel,
         border = BorderStroke(1.dp, MinerColors.Hairline)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Column(
+            modifier = (if (expanded) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { expanded = !expanded },
+                    ) { onExpandedChange(!expanded) },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -149,7 +149,7 @@ fun LiveMinerConsoleCard(
                 }
                 Spacer(modifier = Modifier.width(2.dp))
                 IconButton(
-                    onClick = { expanded = !expanded },
+                    onClick = { onExpandedChange(!expanded) },
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
@@ -161,20 +161,19 @@ fun LiveMinerConsoleCard(
                 }
             }
 
-            AnimatedVisibility(visible = expanded) {
-                Column {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 136.dp, max = 250.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MinerColors.Ground)
-                            .border(1.dp, MinerColors.Hairline, RoundedCornerShape(16.dp))
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
+            if (expanded) {
+                Spacer(modifier = Modifier.height(10.dp))
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MinerColors.Ground)
+                        .border(1.dp, MinerColors.Hairline, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
                         if (logs.isEmpty()) {
                             item {
                                 Text(
@@ -236,4 +235,3 @@ fun LiveMinerConsoleCard(
             }
         }
     }
-}

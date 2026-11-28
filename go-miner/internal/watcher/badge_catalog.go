@@ -26,6 +26,7 @@ type badgeCampaign struct {
 	BadgeImageURL                string
 	StartsAt, EndsAt             time.Time
 	AllChannels                  bool
+	IsInGameDrop                 bool
 	HasAmbiguousDrops            bool
 	Channels                     []string
 	BadgeNames                   []string
@@ -549,13 +550,26 @@ func watchRequirement(requirement string) time.Duration {
 }
 
 type badgeInventoryCampaign struct {
-	ID    string    `json:"id"`
-	Name  string    `json:"name"`
-	EndAt time.Time `json:"endAt"`
-	Game  struct {
-		Slug string `json:"slug"`
-		Name string `json:"name"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Status   string    `json:"status"`
+	StartAt  time.Time `json:"startAt"`
+	EndAt    time.Time `json:"endAt"`
+	ImageURL string    `json:"imageURL"`
+	Game     struct {
+		Slug        string `json:"slug"`
+		Name        string `json:"name"`
+		DisplayName string `json:"displayName"`
 	} `json:"game"`
+	Self *struct {
+		IsAccountConnected bool `json:"isAccountConnected"`
+	} `json:"self"`
+	Allow *struct {
+		IsEnabled bool `json:"isEnabled"`
+		Channels  []struct {
+			Name string `json:"name"`
+		} `json:"channels"`
+	} `json:"allow"`
 	Drops []badgeInventoryDrop `json:"timeBasedDrops"`
 }
 
@@ -568,7 +582,8 @@ type badgeInventoryDrop struct {
 	Preconditions   []json.RawMessage `json:"preconditionDrops"`
 	Benefits        []struct {
 		Benefit struct {
-			Name string `json:"name"`
+			Name          string `json:"name"`
+			ImageAssetURL string `json:"imageAssetURL"`
 		} `json:"benefit"`
 	} `json:"benefitEdges"`
 	Self *struct {
@@ -577,6 +592,114 @@ type badgeInventoryDrop struct {
 		Instance string `json:"dropInstanceID"`
 		Eligible bool   `json:"hasPreconditionsMet"`
 	} `json:"self"`
+}
+
+// connectedInGameDropCampaigns extracts active, unclaimed watch-time in-game
+// drop campaigns from the user's Twitch inventory, strictly requiring
+// isAccountConnected == true so unlinked games are never farmed.
+func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.Time) []badgeCampaign {
+	var out []badgeCampaign
+	for _, camp := range inventory {
+		if camp.ID == "" || camp.Self == nil || !camp.Self.IsAccountConnected {
+			continue
+		}
+		if camp.Status != "" && !strings.EqualFold(camp.Status, "ACTIVE") {
+			continue
+		}
+		if !camp.StartAt.IsZero() && camp.StartAt.After(now) {
+			continue
+		}
+		if camp.EndAt.IsZero() || !camp.EndAt.After(now) {
+			continue
+		}
+
+		var (
+			dropNames  []string
+			watchTimes = make(map[string]time.Duration)
+			imageURL   string
+		)
+		for _, drop := range camp.Drops {
+			if drop.RequiredMinutes <= 0 || drop.RequiredSubs > 0 {
+				continue
+			}
+			if !drop.StartAt.IsZero() && now.Before(drop.StartAt) {
+				continue
+			}
+			if !drop.EndAt.IsZero() && !drop.EndAt.After(now) {
+				continue
+			}
+			remaining := drop.RequiredMinutes
+			if drop.Self != nil {
+				if drop.Self.Claimed || drop.Self.Instance != "" || drop.Self.Minutes >= remaining {
+					continue
+				}
+				if drop.Self.Minutes > 0 {
+					remaining -= drop.Self.Minutes
+				}
+			}
+			if remaining <= 0 {
+				continue
+			}
+
+			name := strings.TrimSpace(drop.Name)
+			if len(drop.Benefits) > 0 {
+				if bName := strings.TrimSpace(drop.Benefits[0].Benefit.Name); bName != "" {
+					name = bName
+				}
+				if imageURL == "" && drop.Benefits[0].Benefit.ImageAssetURL != "" {
+					imageURL = drop.Benefits[0].Benefit.ImageAssetURL
+				}
+			}
+			if name == "" {
+				continue
+			}
+			dropNames = appendUnique(dropNames, name)
+			dur := time.Duration(remaining) * time.Minute
+			if watchTimes[name] == 0 || dur < watchTimes[name] {
+				watchTimes[name] = dur
+			}
+		}
+		if len(dropNames) == 0 {
+			continue
+		}
+		if imageURL == "" {
+			imageURL = camp.ImageURL
+		}
+
+		gameName := camp.Game.DisplayName
+		if gameName == "" {
+			gameName = camp.Game.Name
+		}
+		gameSlug := camp.Game.Slug
+		if gameSlug == "" {
+			gameSlug = slugify(gameName)
+		}
+
+		var channels []string
+		if camp.Allow != nil {
+			for _, ch := range camp.Allow.Channels {
+				if ch.Name != "" {
+					channels = appendUnique(channels, ch.Name)
+				}
+			}
+		}
+
+		out = append(out, badgeCampaign{
+			ID:            camp.ID,
+			Name:          camp.Name,
+			GameName:      gameName,
+			GameSlug:      gameSlug,
+			BadgeImageURL: imageURL,
+			StartsAt:      camp.StartAt,
+			EndsAt:        camp.EndAt,
+			AllChannels:   len(channels) == 0,
+			IsInGameDrop:  true,
+			Channels:      channels,
+			BadgeNames:    dropNames,
+			WatchTimes:    watchTimes,
+		})
+	}
+	return out
 }
 
 func (c badgeCampaign) nextReward(owned map[string]struct{}, inventory []badgeInventoryCampaign, now time.Time) model.RewardDeadline {
