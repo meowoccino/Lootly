@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -418,6 +419,7 @@ fun ActiveBadgeCard(
             SideEffect {
                 val window = (view.parent as? DialogWindowProvider)?.window
                 if (window != null) {
+                    WindowCompat.setDecorFitsSystemWindows(window, true)
                     @Suppress("DEPRECATION")
                     window.navigationBarColor = 0xFF14161F.toInt()
                     WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
@@ -427,7 +429,8 @@ fun ActiveBadgeCard(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 420.dp),
+                        .heightIn(max = 420.dp)
+                        .clipToBounds(),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
