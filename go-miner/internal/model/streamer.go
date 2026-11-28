@@ -12,6 +12,7 @@ import (
 type BadgeDropProgress struct {
 	Reward          string
 	Game            string
+	DropInstanceID  string
 	WatchedMinutes  int
 	RequiredMinutes int
 	ProgressPercent int

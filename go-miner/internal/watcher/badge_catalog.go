@@ -840,6 +840,7 @@ func campaignDropProgress(c badgeCampaign, inventory []badgeInventoryCampaign) *
 			watched := 0
 			claimed := false
 			claimable := false
+			instanceID := ""
 			if d.Self != nil {
 				if d.Self.Claimed {
 					continue
@@ -848,7 +849,8 @@ func campaignDropProgress(c badgeCampaign, inventory []badgeInventoryCampaign) *
 				if watched < 0 {
 					watched = 0
 				}
-				claimable = d.Self.Instance != ""
+				instanceID = d.Self.Instance
+				claimable = instanceID != ""
 			}
 			pct := 0
 			if d.RequiredMinutes > 0 {
@@ -867,6 +869,7 @@ func campaignDropProgress(c badgeCampaign, inventory []badgeInventoryCampaign) *
 			return &model.BadgeDropProgress{
 				Reward:          reward,
 				Game:            gameName,
+				DropInstanceID:  instanceID,
 				WatchedMinutes:  watched,
 				RequiredMinutes: d.RequiredMinutes,
 				ProgressPercent: pct,

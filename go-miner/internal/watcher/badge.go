@@ -41,6 +41,10 @@ type dropsDashboardGQL interface {
 	GetDropsDashboard(ctx context.Context, status string) ([]json.RawMessage, error)
 }
 
+type dropClaimGQL interface {
+	ClaimDropRewards(ctx context.Context, dropInstanceID string) (bool, error)
+}
+
 type badgeTracked struct {
 	username string
 	added    bool
@@ -230,6 +234,14 @@ func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, get func() []*m
 			"progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes),
 		)
 		if prog.IsClaimable || prog.ProgressPercent >= 100 {
+			if prog.DropInstanceID != "" {
+				if claimGQL, ok := bw.gql.(dropClaimGQL); ok {
+					bw.log.Info("Claiming drop from inventory", "drop", prog.Reward, "category", prog.Game)
+					if _, err := claimGQL.ClaimDropRewards(ctx, prog.DropInstanceID); err != nil {
+						bw.log.Warn("Failed to auto-claim completed drop", "drop", prog.Reward, "error", err)
+					}
+				}
+			}
 			shouldRefresh = true
 		}
 	}
