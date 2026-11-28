@@ -191,10 +191,10 @@ fun ActiveBadgeCard(
                         AsyncImage(
                             model = heroImageUrl,
                             contentDescription = active?.badgeName,
-                            contentScale = ContentScale.Fit,
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
                         )
                     } else {
                         Icon(

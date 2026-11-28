@@ -73,24 +73,14 @@ fun DashboardScreen(
     Scaffold(
         containerColor = MinerColors.Ground
     ) { innerPadding ->
-        if (showEligibleScreen) {
-            EligibleListScreen(
-                snapshot = uiState.minerStatus,
-                badgesEnabled = uiState.badgesEnabled,
-                dropsEnabled = uiState.dropsEnabled,
-                onBack = { showEligibleScreen = false },
-                onPinBadge = onPinBadge,
-                onForceRefreshBadges = onForceRefreshBadges,
-                modifier = Modifier.padding(innerPadding)
-            )
-        } else {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             // Top Bar #4: Circular avatar + username on left; Master Switch on right
             Row(
                 modifier = Modifier
@@ -213,6 +203,18 @@ fun DashboardScreen(
                 logs = uiState.logs,
                 onClearLogs = onClearLogs,
                 modifier = Modifier.weight(1f)
+            )
+        }
+
+        if (showEligibleScreen) {
+            EligibleListScreen(
+                snapshot = uiState.minerStatus,
+                badgesEnabled = uiState.badgesEnabled,
+                dropsEnabled = uiState.dropsEnabled,
+                onBack = { showEligibleScreen = false },
+                onPinBadge = onPinBadge,
+                onForceRefreshBadges = onForceRefreshBadges,
+                modifier = Modifier.padding(innerPadding)
             )
         }
         }
