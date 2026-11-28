@@ -1,4 +1,14 @@
-# Twitch Watch-Time Badge & In-Game Drops Miner for Android
+<div align="center">
+
+# Lootly
+
+**Twitch Watch-Time Badge & In-Game Drops Miner for Android**
+
+![Architecture](https://img.shields.io/badge/arch-arm64--v8a-blue)
+![Android](https://img.shields.io/badge/Android-8.0%20--%2017-green)
+![License](https://img.shields.io/badge/license-GPL--3.0-orange)
+
+</div>
 
 > **Disclaimer:** Lootly is an independent, open-source project and is not affiliated with, endorsed, or sponsored by Twitch Interactive, Inc. or StreamDatabase. Automating watch-time or interacting with Twitch's internal APIs falls outside Twitch's official Terms of Service—while single-stream watch-time clients rarely face enforcement, use this software at your own discretion and risk.
 
@@ -9,7 +19,7 @@
 Lootly (`com.lootly.app`) is a native Kotlin Android app (Jetpack Compose Material 3 dark UI) for automated Twitch watch-time global badge and in-game drop farming with zero manual token setup and minimal background data usage.
 
 - **Architecture:** `arm64-v8a`
-- **Android versions:** Android 8.0 – 17 (minSdk 26, targetSdk 35)
+- **Android versions:** Android 8.0 to 17 (minSdk 26, targetSdk 35)
 
 ### Features
 
@@ -28,28 +38,28 @@ Lootly (`com.lootly.app`) is a native Kotlin Android app (Jetpack Compose Materi
    - Counts watch-time minutes toward badges and drops while using less than 1% of normal video data and CPU.
 
 4. **Global Badges & In-Game Drops Discovery, Multi-Tier Handling & Account Linking:**
-   - **Global Badges & In-Game Drops:** Automatically scans, farms, and claims free watch-to-earn in-game drops alongside global watch-time badges (indexed from Twitch GQL Drops Inventory and `streamdatabase.com/twitch/global-badges` on a 1-hour timer with **±4 minute** jitter).
-   - **Independent Badges / Drops Toggles:** Toggle Global Badges or In-Game Drops on and off independently right from the main screen.
+   - **Global Badges & In-Game Drops:** Automatically scans, farms, and claims free watch-to-earn in-game drops alongside global watch-time badges (indexed from Twitch GQL Drops Inventory and `streamdatabase.com/twitch/global-badges` every hour with a random 4-minute offset).
+   - **Independent Badges / Drops Toggles:** Turn Global Badges or In-Game Drops on and off independently right from the main screen.
    - **In-App Account Linking:** Unlinked game drop campaigns appear at the bottom of the queue; tapping one opens Twitch's account-linking page directly inside the app and automatically refreshes drop eligibility when you return.
    - **Multi-Tier & Daily Cap Handling:** Resolves multi-tier badge and drop progressions in ascending tier order, calculates per-tier step durations dynamically, prioritizes items in Auto order (earliest expiration date first, then shortest unowned tier), and rotates away from multi-day events once a daily watch cap is reached.
 
 5. **Live Watch Drops Sync, Manual Target Selection & Smarter Stream Switching:**
    - **Live Per-Channel Watch Drops Sync (`DropCurrentSessionContext`):** Syncs watched and remaining minutes directly from Twitch for channel-level Watch Drops and badge celebrations, combining session watch time with Twitch GQL inventory syncs so progress updates continuously.
    - **Manual Mode (`TARGET` Tile):** Tap any badge or drop in the eligible queue to select and mine it immediately via the **TARGET** (`Auto` / `Manual`) tile. Tap **TARGET** (or **Reset Auto**) to return to automatic priority, or let it auto-reset once the manually selected item completes or hits its daily cap.
-   - **Smarter Stream Switching & Pacing:** Verifies that the selected stream actually has the target drop active and automatically switches streams if watch-time progress stalls for 2 minutes or the streamer goes offline. Uses a **20–55s** randomized claim delay upon completion and a **5–12s** cooldown between stream switches.
+   - **Smarter Stream Switching & Pacing:** Verifies that the selected stream actually has the target drop active and automatically switches streams if watch-time progress stalls for 2 minutes or the streamer goes offline. Uses a randomized 20 to 55 second claim delay upon completion and a 5 to 12 second cooldown between stream switches.
 
 6. **Twitch App Auto-Pause (`UsageStatsManager`):**
    - `AppUsageMonitor` checks foreground app usage every 3 seconds.
    - Pauses watch heartbeats immediately when the official Twitch app (`tv.twitch.android.app`) is opened to prevent concurrent stream conflicts, and resumes automatically when closed (toggleable in settings).
 
 7. **Foreground Service & Zero-Battery Standby:**
-   - `MinerForegroundService` runs as a `DATA_SYNC` foreground service (`START_STICKY`) with a partial WakeLock, handling Android 15/16+'s 6-hour rolling `dataSync` limit via `onTimeout()`.
-   - Shows an ongoing notification with badge/drop progress, percentage, ETA, and Pause/Resume/Stop controls.
-   - Enters Zero-Battery Standby when 0 eligible items remain, releasing the partial WakeLock until the next catalog scan.
+   - `MinerForegroundService` runs as a `DATA_SYNC` foreground service (`START_STICKY`) with a partial WakeLock, handling Android 15 and 16+'s 6-hour rolling `dataSync` limit via `onTimeout()`.
+   - Shows an ongoing notification with badge or drop progress, percentage, estimated time remaining, and Pause, Resume, and Stop controls.
+   - Enters Zero-Battery Standby when no eligible items remain, releasing the partial WakeLock until the next catalog scan.
 
 8. **Redesigned Single-Screen Dark UI:**
-   - Cleaner single-screen dark layout featuring minimal icon controls, independent **Badges** / **Drops** toggles, and an auto-hiding Permission Health Bar (collapses once Usage Stats, Battery Optimization, and Notifications are granted).
-   - **Liquid Progress Fill:** Active badge/drop card with liquid progress fill animation, icon, title, streamer name, category, split percentage and ETA (`~Xm left`), and **TARGET** mode indicator (`Auto` / `Manual`).
+   - Cleaner single-screen dark layout featuring minimal icon controls, independent **Badges** and **Drops** toggles, and an auto-hiding Permission Health Bar (collapses once Usage Stats, Battery Optimization, and Notifications are granted).
+   - **Liquid Progress Fill:** Active badge or drop card with liquid progress fill animation, icon, title, streamer name, category, split percentage and remaining time estimate, and **TARGET** mode indicator (`Auto` or `Manual`).
    - **Inline Expandable Queue:** Expandable list for eligible drops and badges sorted in Auto priority order (manually selected item first, then earliest expiration date, with unlinked drops grouped at the bottom for one-tap in-app account linking).
    - **Flat Log Console:** Permanently expanded flat monospace console with `HH:mm:ss` timestamps, color-coded log levels, and debug spam filtering.
 
@@ -120,11 +130,11 @@ Output APK:
 
 Declared in `app/src/main/AndroidManifest.xml`:
 
-1. **`android.permission.INTERNET`:** Connects to Twitch GQL APIs, HLS playlists, segment servers, Twitch account-linking pages, the local loopback integrity bridge, and loads badge/drop icons via Coil.
-2. **`android.permission.ACCESS_NETWORK_STATE`:** Detects Wi-Fi/cellular connectivity changes to pause or resume network activity.
-3. **`android.permission.FOREGROUND_SERVICE` & `android.permission.FOREGROUND_SERVICE_DATA_SYNC`:** Keeps `MinerForegroundService` running in the background (`dataSync` type) while the screen is off or the app is minimized, handling Android 15/16+'s 6-hour rolling `dataSync` limit via `onTimeout()`.
-4. **`android.permission.POST_NOTIFICATIONS`:** Shows the ongoing notification (progress %, badge/drop name, ETA, Pause/Resume/Stop buttons) and alerts when a reward is claimed (Android 13+).
-5. **`android.permission.WAKE_LOCK`:** Holds a `PARTIAL_WAKE_LOCK` while an eligible badge or drop is actively mining so watch heartbeats continue with the screen off; released when 0 items remain.
+1. **`android.permission.INTERNET`:** Connects to Twitch GQL APIs, HLS playlists, segment servers, Twitch account-linking pages, the local loopback integrity bridge, and loads badge and drop icons via Coil.
+2. **`android.permission.ACCESS_NETWORK_STATE`:** Detects Wi-Fi and cellular connectivity changes to pause or resume network activity.
+3. **`android.permission.FOREGROUND_SERVICE` & `android.permission.FOREGROUND_SERVICE_DATA_SYNC`:** Keeps `MinerForegroundService` running in the background (`dataSync` type) while the screen is off or the app is minimized, handling Android 15 and 16+'s 6-hour rolling `dataSync` limit via `onTimeout()`.
+4. **`android.permission.POST_NOTIFICATIONS`:** Shows the ongoing notification (progress percentage, badge or drop name, remaining time, and Pause, Resume, and Stop buttons) and alerts when a reward is claimed (Android 13 and newer).
+5. **`android.permission.WAKE_LOCK`:** Holds a `PARTIAL_WAKE_LOCK` while an eligible badge or drop is actively mining so watch heartbeats continue with the screen off; released when no items remain.
 6. **`android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`:** Prompts to exempt Lootly from Doze and OEM background battery restrictions.
 7. **`android.permission.PACKAGE_USAGE_STATS`:** Used by `AppUsageMonitor` to detect when the official Twitch app (`tv.twitch.android.app`) is in the foreground so Auto-Pause can halt watch heartbeats.
 
@@ -155,7 +165,7 @@ Declared in `app/src/main/AndroidManifest.xml`:
    - Pure-Go Android DNS resolver (`internal/androidnet/dns_android.go`) bypassing Android's missing `/etc/resolv.conf`, with Cloudflare DoH (`1.1.1.1`) and system DNS fallback (handles local VPN firewalls like AdGuard blocking `spade.twitch.tv`).
    - Android 14+ Conscrypt system CA certificate discovery (`SSL_CERT_DIR`).
    - Headless WebView `Client-Integrity` HTTP bridge client (`internal/auth/`, `internal/gql/`).
-   - Multi-tier global badge & in-game drop discovery, StreamDatabase ↔ Twitch Inventory matcher, unlinked drop surfacing, dynamic step duration calculator, priority queue sorter, randomized scan/switch/claim delays, and daily watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`, `internal/watcher/loop.go`, `internal/twitch/drops.go`).
+   - Multi-tier global badge and in-game drop discovery, StreamDatabase to Twitch Inventory matcher, unlinked drop surfacing, dynamic step duration calculator, priority queue sorter, randomized scan, switch, and claim delays, and daily watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`, `internal/watcher/loop.go`, `internal/twitch/drops.go`).
    - Live per-channel Watch Drops sync (`DropCurrentSessionContext`), active stream drop verification, 2-minute stall detection with automatic stream failover, and live progress calculation in `/api/streamers`.
    - Loopback HTTP control endpoints (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`, `POST /api/control/pin-badge`, and category toggle controls).
    - Stripped desktop Cgo/X11 systray dependencies for pure-Go Android ARM64 builds.
