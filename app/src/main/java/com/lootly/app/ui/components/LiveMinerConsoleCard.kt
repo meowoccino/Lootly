@@ -3,8 +3,6 @@ package com.lootly.app.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,8 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material3.Icon
@@ -56,16 +52,14 @@ import com.lootly.app.ui.theme.MinerColors
 fun LiveMinerConsoleCard(
     logs: List<LogEntry>,
     onClearLogs: () -> Unit,
-    expanded: Boolean = true,
-    onExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var autoScroll by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
 
-    LaunchedEffect(logs.size, expanded, autoScroll) {
-        if (expanded && autoScroll && logs.isNotEmpty()) {
+    LaunchedEffect(logs.size, autoScroll) {
+        if (autoScroll && logs.isNotEmpty()) {
             listState.animateScrollToItem(logs.lastIndex)
         }
     }
@@ -77,16 +71,12 @@ fun LiveMinerConsoleCard(
         border = BorderStroke(1.dp, MinerColors.Hairline)
     ) {
         Column(
-            modifier = (if (expanded) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+            modifier = Modifier
+                .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onExpandedChange(!expanded) },
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -107,73 +97,58 @@ fun LiveMinerConsoleCard(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                if (expanded) {
-                    IconButton(
-                        onClick = { autoScroll = !autoScroll },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.VerticalAlignBottom,
-                            contentDescription = "Toggle auto-scroll",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (autoScroll) MinerColors.LiveMint else MinerColors.TextMuted
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            val text = logs.joinToString("\n") {
-                                "${it.timestamp} [${it.category}] ${it.message}"
-                            }
-                            clipboard.setText(AnnotatedString(text))
-                        },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
-                            contentDescription = "Copy logs",
-                            modifier = Modifier.size(15.dp),
-                            tint = MinerColors.TextSecondary
-                        )
-                    }
-                    IconButton(
-                        onClick = onClearLogs,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.DeleteSweep,
-                            contentDescription = "Clear logs",
-                            modifier = Modifier.size(16.dp),
-                            tint = MinerColors.TextSecondary
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(2.dp))
                 IconButton(
-                    onClick = { onExpandedChange(!expanded) },
+                    onClick = { autoScroll = !autoScroll },
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
-                        imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                        contentDescription = if (expanded) "Collapse console" else "Expand console",
-                        modifier = Modifier.size(20.dp),
+                        imageVector = Icons.Rounded.VerticalAlignBottom,
+                        contentDescription = "Toggle auto-scroll",
+                        modifier = Modifier.size(16.dp),
+                        tint = if (autoScroll) MinerColors.LiveMint else MinerColors.TextMuted
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        val text = logs.joinToString("\n") {
+                            "${it.timestamp} [${it.category}] ${it.message}"
+                        }
+                        clipboard.setText(AnnotatedString(text))
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentCopy,
+                        contentDescription = "Copy logs",
+                        modifier = Modifier.size(15.dp),
+                        tint = MinerColors.TextSecondary
+                    )
+                }
+                IconButton(
+                    onClick = onClearLogs,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteSweep,
+                        contentDescription = "Clear logs",
+                        modifier = Modifier.size(16.dp),
                         tint = MinerColors.TextSecondary
                     )
                 }
             }
 
-            if (expanded) {
-                Spacer(modifier = Modifier.height(10.dp))
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MinerColors.Ground)
-                        .border(1.dp, MinerColors.Hairline, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
+            Spacer(modifier = Modifier.height(10.dp))
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MinerColors.Ground)
+                    .border(1.dp, MinerColors.Hairline, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
                         if (logs.isEmpty()) {
                             item {
                                 Text(
@@ -234,4 +209,3 @@ fun LiveMinerConsoleCard(
                 }
             }
         }
-    }

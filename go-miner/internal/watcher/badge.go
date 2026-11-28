@@ -46,8 +46,10 @@ type dropClaimGQL interface {
 }
 
 type badgeTracked struct {
-	username string
-	added    bool
+	username            string
+	added               bool
+	lastProgressMinutes int
+	stalledTicks        int
 }
 
 type badgeCandidate struct {
@@ -71,9 +73,10 @@ type BadgeWatcher struct {
 	log             *logger.Logger
 	blacklist       map[string]bool
 	defaults        *model.StreamerSettings
-	tracked         map[string]badgeTracked
-	lastEligible    map[string]badgeCampaign
-	channelIDs      map[string]string
+	tracked          map[string]badgeTracked
+	lastEligible     map[string]badgeCampaign
+	stalledSkipUntil map[string]time.Time
+	channelIDs       map[string]string
 	campaigns       []badgeCampaign
 	catalogLoadedAt time.Time
 	pinnedCampaign  string
@@ -97,9 +100,10 @@ func NewBadgeWatcher(cfg config.BadgeWatcherConfig, gqlClient badgeGQL, httpClie
 		log:           log,
 		blacklist:     b,
 		defaults:      defaults,
-		tracked:       make(map[string]badgeTracked),
-		lastEligible:  make(map[string]badgeCampaign),
-		channelIDs:    make(map[string]string),
+		tracked:          make(map[string]badgeTracked),
+		lastEligible:     make(map[string]badgeCampaign),
+		stalledSkipUntil: make(map[string]time.Time),
+		channelIDs:       make(map[string]string),
 		badgesEnabled: true,
 		dropsEnabled:  true,
 		refreshCh:     make(chan struct{}, 1),
@@ -176,14 +180,14 @@ func (bw *BadgeWatcher) Run(ctx context.Context, add func(context.Context, *mode
 		case <-ticker.C:
 			bw.evaluate(ctx, add, remove, get)
 		case <-progressTicker.C:
-			bw.syncTrackedProgress(ctx, get)
+			bw.syncTrackedProgress(ctx, remove, get)
 		case <-bw.refreshCh:
 			bw.evaluate(ctx, add, remove, get)
 		}
 	}
 }
 
-func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, get func() []*model.Streamer) {
+func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, remove func(string, string), get func() []*model.Streamer) {
 	bw.mu.Lock()
 	if len(bw.tracked) == 0 {
 		bw.mu.Unlock()
@@ -212,6 +216,7 @@ func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, get func() []*m
 
 	streamers := get()
 	shouldRefresh := false
+	now := time.Now()
 	for id, tr := range trackedCopy {
 		camp, ok := eligibleCopy[id]
 		if !ok {
@@ -241,6 +246,39 @@ func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, get func() []*m
 						bw.log.Warn("Failed to auto-claim completed drop", "drop", prog.Reward, "error", err)
 					}
 				}
+			}
+			shouldRefresh = true
+			continue
+		}
+
+		// 4-minute stall watchdog: if watched_minutes hasn't increased for 4
+		// consecutive 60s ticks, skip this streamer for 30 minutes and switch.
+		bw.mu.Lock()
+		cur, stillTracked := bw.tracked[id]
+		stalled := false
+		if stillTracked {
+			if prog.WatchedMinutes > cur.lastProgressMinutes {
+				cur.lastProgressMinutes = prog.WatchedMinutes
+				cur.stalledTicks = 0
+			} else {
+				cur.stalledTicks++
+			}
+			if cur.stalledTicks >= 4 {
+				stalled = true
+				bw.stalledSkipUntil[strings.ToLower(cur.username)] = now.Add(30 * time.Minute)
+				delete(bw.tracked, id)
+			} else {
+				bw.tracked[id] = cur
+			}
+		}
+		bw.mu.Unlock()
+
+		if stalled {
+			bw.log.Warn("Stream stalled (no progress for 4m) — switching stream", "streamer", tr.username, "campaign", camp.Name)
+			if tr.added {
+				remove(tr.username, "badge_stream_stalled")
+			} else {
+				unmarkBadge(streamers, tr.username)
 			}
 			shouldRefresh = true
 		}
@@ -428,9 +466,16 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		limit = 2
 	}
 	bw.mu.Lock()
-	reserved := make(map[string]bool, len(bw.tracked))
+	reserved := make(map[string]bool, len(bw.tracked)+len(bw.stalledSkipUntil))
 	for _, tr := range bw.tracked {
 		reserved[strings.ToLower(tr.username)] = true
+	}
+	for login, until := range bw.stalledSkipUntil {
+		if now.Before(until) {
+			reserved[login] = true
+		} else {
+			delete(bw.stalledSkipUntil, login)
+		}
 	}
 	bw.mu.Unlock()
 	emitEligible := func(c badgeCampaign, isLinked bool) {
@@ -501,7 +546,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 				bw.log.Info("Drop progress", "reward", prog.Reward, "streamer", existing.Username, "progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes))
 			}
 			bw.mu.Lock()
-			bw.tracked[id] = badgeTracked{candidate.stream.Username, false}
+			bw.tracked[id] = badgeTracked{username: candidate.stream.Username, added: false}
 			bw.mu.Unlock()
 			reserved[strings.ToLower(candidate.stream.Username)] = true
 			used++
@@ -517,7 +562,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			bw.log.Info("Drop progress", "reward", prog.Reward, "streamer", s.Username, "progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes))
 		}
 		bw.mu.Lock()
-		bw.tracked[id] = badgeTracked{candidate.stream.Username, true}
+		bw.tracked[id] = badgeTracked{username: candidate.stream.Username, added: true}
 		bw.mu.Unlock()
 		reserved[strings.ToLower(candidate.stream.Username)] = true
 		used++

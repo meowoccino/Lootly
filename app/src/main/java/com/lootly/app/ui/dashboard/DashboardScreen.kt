@@ -68,7 +68,6 @@ fun DashboardScreen(
 ) {
     val haptics = LocalHapticFeedback.current
     var showLogoutDialog by remember { mutableStateOf(false) }
-    var consoleExpanded by remember { mutableStateOf(true) }
     val session = uiState.session
 
     Scaffold(
@@ -78,8 +77,8 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Top Bar #4: Circular avatar + username on left; Master Switch on right
@@ -202,9 +201,7 @@ fun DashboardScreen(
             LiveMinerConsoleCard(
                 logs = uiState.logs,
                 onClearLogs = onClearLogs,
-                expanded = consoleExpanded,
-                onExpandedChange = { consoleExpanded = it },
-                modifier = if (consoleExpanded) Modifier.weight(1f) else Modifier
+                modifier = Modifier.weight(1f)
             )
         }
     }
