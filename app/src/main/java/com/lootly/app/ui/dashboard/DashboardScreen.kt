@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
@@ -80,7 +78,6 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -206,7 +203,8 @@ fun DashboardScreen(
                 logs = uiState.logs,
                 onClearLogs = onClearLogs,
                 expanded = consoleExpanded,
-                onExpandedChange = { consoleExpanded = it }
+                onExpandedChange = { consoleExpanded = it },
+                modifier = if (consoleExpanded) Modifier.weight(1f) else Modifier
             )
         }
     }

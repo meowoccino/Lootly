@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +58,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -198,9 +201,17 @@ fun ActiveBadgeCard(
                         }
                     }
 
-                    if (!active?.badgeImageUrl.isNullOrBlank()) {
+                    val heroImageUrl = active?.badgeImageUrl?.takeIf { it.isNotBlank() }
+                        ?: active?.let { c ->
+                            snapshot.eligibleBadges.firstOrNull { item ->
+                                item.badgeName.equals(c.badgeName, ignoreCase = true) ||
+                                    item.campaignName.equals(c.campaignName, ignoreCase = true)
+                            }?.badgeImageUrl?.takeIf { it.isNotBlank() }
+                        }
+
+                    if (!heroImageUrl.isNullOrBlank()) {
                         AsyncImage(
-                            model = active?.badgeImageUrl,
+                            model = heroImageUrl,
                             contentDescription = active?.badgeName,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
@@ -389,15 +400,23 @@ fun ActiveBadgeCard(
             onDismissRequest = { showEligibleSheet = false },
             sheetState = sheetState,
             containerColor = Color(0xFF14161F),
-            contentColor = MinerColors.TextPrimary,
-            contentWindowInsets = { WindowInsets(0) }
+            contentColor = MinerColors.TextPrimary
         ) {
+            val view = LocalView.current
+            SideEffect {
+                val window = (view.parent as? DialogWindowProvider)?.window
+                if (window != null) {
+                    @Suppress("DEPRECATION")
+                    window.navigationBarColor = 0xFF14161F.toInt()
+                    WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+                }
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 420.dp)
                     .navigationBarsPadding(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(

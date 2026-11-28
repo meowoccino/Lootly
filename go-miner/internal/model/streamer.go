@@ -26,6 +26,7 @@ type Streamer struct {
 	TeamName          string         `json:"team_name,omitempty"`
 	IsBadgeWatched    bool           `json:"is_badge_watched"`
 	BadgeCampaign     string         `json:"badge_campaign,omitempty"`
+	BadgeImageURL     string         `json:"badge_image_url,omitempty"`
 	BadgeReward       RewardDeadline `json:"-"`
 
 	StreamUpAt time.Time `json:"stream_up_at"`

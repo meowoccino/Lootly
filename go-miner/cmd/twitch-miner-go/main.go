@@ -220,6 +220,29 @@ func main() {
 		listenAddr = ":" + httpPort
 	}
 	analyticsServer := setupAnalyticsServer(listenAddr, rootLog, mgr, accountStore)
+	analyticsServer.SetControlHandlers(server.ControlHandlers{
+		OnRefreshBadges: func() {
+			for _, e := range mgr.Entries() {
+				if e.Miner != nil {
+					e.Miner.RefreshBadges()
+				}
+			}
+		},
+		OnPinBadge: func(campaign string) {
+			for _, e := range mgr.Entries() {
+				if e.Miner != nil {
+					e.Miner.PinBadgeCampaign(campaign)
+				}
+			}
+		},
+		OnSetFilters: func(badges, drops bool) {
+			for _, e := range mgr.Entries() {
+				if e.Miner != nil {
+					e.Miner.SetBadgeFilters(badges, drops)
+				}
+			}
+		},
+	})
 	utils.SafeGo(func() {
 		if err := analyticsServer.Run(ctx); err != nil && ctx.Err() == nil {
 			rootLog.Error("Analytics server failed", "error", err)

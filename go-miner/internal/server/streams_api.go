@@ -91,6 +91,7 @@ type streamerSummary struct {
 	IsCategoryWatched bool                `json:"is_category_watched"`
 	IsBadgeWatched    bool                `json:"is_badge_watched"`
 	BadgeCampaign     string              `json:"badge_campaign,omitempty"`
+	BadgeImageURL     string              `json:"badge_image_url,omitempty"`
 	ChannelPoints     int                 `json:"channel_points"`
 	StreamerURL       string              `json:"streamer_url"`
 	Game              string              `json:"game,omitempty"`
@@ -118,6 +119,7 @@ type streamerDetail struct {
 	IsCategoryWatched bool                           `json:"is_category_watched"`
 	IsBadgeWatched    bool                           `json:"is_badge_watched"`
 	BadgeCampaign     string                         `json:"badge_campaign,omitempty"`
+	BadgeImageURL     string                         `json:"badge_image_url,omitempty"`
 	CategorySlug      string                         `json:"category_slug,omitempty"`
 	ChannelPoints     int                            `json:"channel_points"`
 	StreamerURL       string                         `json:"streamer_url"`
@@ -325,6 +327,7 @@ func (s *AnalyticsServer) handleStreamers(w http.ResponseWriter, r *http.Request
 			IsCategoryWatched: streamer.IsCategoryWatched,
 			IsBadgeWatched:    streamer.IsBadgeWatched,
 			BadgeCampaign:     streamer.BadgeCampaign,
+			BadgeImageURL:     streamer.BadgeImageURL,
 			ChannelPoints:     streamer.ChannelPoints,
 			StreamerURL:       streamer.StreamerURL,
 		}
@@ -426,6 +429,7 @@ func (s *AnalyticsServer) handleStreamer(w http.ResponseWriter, r *http.Request)
 				IsCategoryWatched: streamer.IsCategoryWatched,
 				IsBadgeWatched:    streamer.IsBadgeWatched,
 				BadgeCampaign:     streamer.BadgeCampaign,
+			BadgeImageURL:     streamer.BadgeImageURL,
 				CategorySlug:      streamer.CategorySlug,
 				ChannelPoints:     streamer.ChannelPoints,
 				StreamerURL:       streamer.StreamerURL,

@@ -174,7 +174,7 @@ class MinerRepository(
             copy
         }
         _status.update { current ->
-            val shouldClearActive = (activeCount == 0 && eligibleCount == 0) ||
+            val shouldClearActive = eligibleCount == 0 ||
                 (activeCount == 0 && current.activeCampaign != null &&
                     (current.activeCampaign.computedPercent >= 100 || current.activeCampaign.isClaimed))
 

@@ -74,6 +74,7 @@ type BadgeWatcher struct {
 	pinnedCampaign  string
 	badgesEnabled   bool
 	dropsEnabled    bool
+	refreshCh       chan struct{}
 }
 
 func NewBadgeWatcher(cfg config.BadgeWatcherConfig, gqlClient badgeGQL, httpClient *http.Client, log *logger.Logger, blacklist []string, defaults *model.StreamerSettings) *BadgeWatcher {
@@ -95,6 +96,19 @@ func NewBadgeWatcher(cfg config.BadgeWatcherConfig, gqlClient badgeGQL, httpClie
 		channelIDs:    make(map[string]string),
 		badgesEnabled: true,
 		dropsEnabled:  true,
+		refreshCh:     make(chan struct{}, 1),
+	}
+}
+
+// TriggerRefresh wakes the BadgeWatcher loop immediately to re-evaluate
+// eligible badges/drops (non-blocking).
+func (bw *BadgeWatcher) TriggerRefresh() {
+	if bw == nil || bw.refreshCh == nil {
+		return
+	}
+	select {
+	case bw.refreshCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -134,7 +148,28 @@ func matchesBadgePin(c badgeCampaign, pinned string) bool {
 }
 
 func (bw *BadgeWatcher) Run(ctx context.Context, add func(context.Context, *model.Streamer), remove func(string, string), get func() []*model.Streamer) error {
-	return pollLoop(ctx, bw.log, bw.cfg.PollInterval, "🏅 BadgeWatcher started", "🏅 BadgeWatcher stopping", []any{"poll_interval", bw.cfg.PollInterval, "streamer_limit", bw.cfg.StreamerLimit}, func(ctx context.Context) { bw.evaluate(ctx, add, remove, get) }, func() { bw.cleanup(remove, get) })
+	bw.log.Info("🏅 BadgeWatcher started", "poll_interval", bw.cfg.PollInterval, "streamer_limit", bw.cfg.StreamerLimit)
+	bw.evaluate(ctx, add, remove, get)
+
+	interval := bw.cfg.PollInterval
+	if interval <= 0 {
+		interval = time.Hour
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			bw.log.Info("🏅 BadgeWatcher stopping")
+			bw.cleanup(remove, get)
+			return ctx.Err()
+		case <-ticker.C:
+			bw.evaluate(ctx, add, remove, get)
+		case <-bw.refreshCh:
+			bw.evaluate(ctx, add, remove, get)
+		}
+	}
 }
 
 func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, *model.Streamer), remove func(string, string), get func() []*model.Streamer) {
@@ -366,6 +401,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			existing.Mu.Lock()
 			existing.IsBadgeWatched = true
 			existing.BadgeCampaign = c.Name
+			existing.BadgeImageURL = c.BadgeImageURL
 			existing.BadgeReward = rewards[id]
 			if len(candidate.campaignIDs) > 0 {
 				existing.Stream.CampaignIDs = append([]string(nil), candidate.campaignIDs...)
@@ -399,6 +435,7 @@ func (bw *BadgeWatcher) badgeStreamer(ctx context.Context, candidate *gql.TopStr
 	s.OnlineAt = time.Now()
 	s.IsBadgeWatched = true
 	s.BadgeCampaign = campaign.Name
+	s.BadgeImageURL = campaign.BadgeImageURL
 	if candidate.GameID != "" || candidate.GameSlug != "" || candidate.GameName != "" {
 		gameSlug := candidate.GameSlug
 		if gameSlug == "" {
