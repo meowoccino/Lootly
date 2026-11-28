@@ -78,21 +78,12 @@ fun LiveMinerConsoleCard(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MinerColors.TwitchViolet.copy(alpha = 0.15f))
-                        .border(1.dp, MinerColors.TwitchViolet.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Terminal,
-                        contentDescription = "Console",
-                        modifier = Modifier.size(18.dp),
-                        tint = MinerColors.TwitchVioletGlow
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Rounded.Terminal,
+                    contentDescription = "Console",
+                    modifier = Modifier.size(19.dp),
+                    tint = Color(0xFF8B90A5)
+                )
 
                 Spacer(modifier = Modifier.weight(1f))
 

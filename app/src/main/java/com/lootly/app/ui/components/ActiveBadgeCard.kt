@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -249,26 +250,28 @@ fun ActiveBadgeCard(
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
+                        val isManual = !pinned.isNullOrBlank()
+                        val modeBg by animateColorAsState(
+                            targetValue = if (isManual) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
+                            label = "modeBg"
+                        )
+                        val modeBorder by animateColorAsState(
+                            targetValue = if (isManual) Color(0xFF9146FF) else Color(0xFF2B2E40),
+                            label = "modeBorder"
+                        )
                         Surface(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
-                                .clickable(enabled = !pinned.isNullOrBlank()) {
+                                .clickable(enabled = isManual) {
                                     onPinBadge(null)
                                 },
                             shape = RoundedCornerShape(999.dp),
-                            color = MinerColors.PanelRaised,
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (!pinned.isNullOrBlank()) {
-                                    MinerColors.TwitchViolet.copy(alpha = 0.55f)
-                                } else {
-                                    MinerColors.Hairline
-                                }
-                            )
+                            color = modeBg,
+                            border = BorderStroke(width = 1.dp, color = modeBorder)
                         ) {
                             Text(
-                                text = if (pinned.isNullOrBlank()) "Auto" else "Manual",
-                                color = MinerColors.TwitchVioletGlow,
+                                text = if (isManual) "Manual" else "Auto",
+                                color = Color(0xFFE6E8F0),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -303,6 +306,31 @@ fun ActiveBadgeCard(
             }
 
             // Single balanced action row: X Eligible + Pause/Resume + 360° Refresh
+            val eligibleBg by animateColorAsState(
+                targetValue = if (eligibleExpanded) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
+                label = "eligibleBg"
+            )
+            val eligibleBorder by animateColorAsState(
+                targetValue = if (eligibleExpanded) Color(0xFF9146FF) else Color(0xFF2B2E40),
+                label = "eligibleBorder"
+            )
+            val pauseBg by animateColorAsState(
+                targetValue = if (snapshot.runState.isPaused) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
+                label = "pauseBg"
+            )
+            val pauseBorder by animateColorAsState(
+                targetValue = if (snapshot.runState.isPaused) Color(0xFF9146FF) else Color(0xFF2B2E40),
+                label = "pauseBorder"
+            )
+            val refreshBg by animateColorAsState(
+                targetValue = if (refreshRotation.isRunning) Color(0xFF9146FF).copy(alpha = 0.18f) else Color(0xFF1A1C28),
+                label = "refreshBg"
+            )
+            val refreshBorder by animateColorAsState(
+                targetValue = if (refreshRotation.isRunning) Color(0xFF9146FF) else Color(0xFF2B2E40),
+                label = "refreshBorder"
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -315,21 +343,14 @@ fun ActiveBadgeCard(
                         .clip(RoundedCornerShape(999.dp))
                         .clickable(enabled = sortedEligible.isNotEmpty(), onClick = onToggleEligible),
                     shape = RoundedCornerShape(999.dp),
-                    color = MinerColors.PanelRaised,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (eligibleExpanded) {
-                            MinerColors.TwitchViolet.copy(alpha = 0.55f)
-                        } else {
-                            MinerColors.Hairline
-                        }
-                    )
+                    color = eligibleBg,
+                    border = BorderStroke(width = 1.dp, color = eligibleBorder)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         val eligibleCount = sortedEligible.size
                         Text(
                             text = "$eligibleCount Eligible",
-                            color = MinerColors.TextPrimary,
+                            color = Color(0xFFE6E8F0),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center
@@ -344,13 +365,13 @@ fun ActiveBadgeCard(
                         .clip(RoundedCornerShape(999.dp))
                         .clickable(enabled = snapshot.runState.isServiceActive, onClick = onTogglePause),
                     shape = RoundedCornerShape(999.dp),
-                    color = MinerColors.TwitchViolet.copy(alpha = 0.20f),
-                    border = BorderStroke(1.dp, MinerColors.TwitchViolet.copy(alpha = 0.52f))
+                    color = pauseBg,
+                    border = BorderStroke(1.dp, pauseBorder)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = if (snapshot.runState.isPaused) "Resume" else "Pause",
-                            color = MinerColors.TextPrimary,
+                            color = Color(0xFFE6E8F0),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center
@@ -373,8 +394,8 @@ fun ActiveBadgeCard(
                             }
                         },
                     shape = RoundedCornerShape(999.dp),
-                    color = MinerColors.PanelRaised,
-                    border = BorderStroke(1.dp, MinerColors.Hairline)
+                    color = refreshBg,
+                    border = BorderStroke(1.dp, refreshBorder)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -383,7 +404,7 @@ fun ActiveBadgeCard(
                             modifier = Modifier
                                 .size(18.dp)
                                 .rotate(refreshRotation.value),
-                            tint = MinerColors.TextSecondary
+                            tint = Color(0xFFE6E8F0)
                         )
                     }
                 }
