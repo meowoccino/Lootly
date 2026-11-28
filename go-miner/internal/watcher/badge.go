@@ -425,13 +425,19 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		return unlinkedDrops[i].Name < unlinkedDrops[j].Name
 	})
 
-	// Retire completed campaigns and stale channels before filling free slots.
+	// Retire completed campaigns, stale channels, or lower-priority targets
+	// (e.g. after pinning a different item or returning to Auto) before filling free slots.
+	topEligibleID := ""
+	if len(eligibleOrdered) > 0 {
+		topEligibleID = eligibleOrdered[0].ID
+	}
 	bw.mu.Lock()
 	bw.lastEligible = eligible
 	for id, tr := range bw.tracked {
 		campaign, eligibleNow := eligible[id]
 		streamer := findStreamer(get(), tr.username)
-		valid := eligibleNow && streamer != nil && badgeStreamerValid(streamer, campaign)
+		shouldRetarget := topEligibleID != "" && id != topEligibleID && bw.cfg.StreamerLimit == 1
+		valid := eligibleNow && !shouldRetarget && streamer != nil && badgeStreamerValid(streamer, campaign)
 		if valid {
 			prog := campaignDropProgress(campaign, allInventoryCampaigns)
 			streamer.Mu.Lock()
@@ -449,7 +455,9 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		}
 		if tr.added {
 			reason := "badge_stream_no_longer_eligible"
-			if !eligibleNow {
+			if shouldRetarget {
+				reason = "badge_priority_retarget"
+			} else if !eligibleNow {
 				reason = "badge_campaign_completed_or_expired"
 			}
 			remove(tr.username, reason)
