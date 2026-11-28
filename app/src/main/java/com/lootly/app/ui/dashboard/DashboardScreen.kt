@@ -1,5 +1,6 @@
 package com.lootly.app.ui.dashboard
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,20 +68,23 @@ fun DashboardScreen(
 ) {
     val haptics = LocalHapticFeedback.current
     var showLogoutDialog by remember { mutableStateOf(false) }
-    var showEligibleScreen by remember { mutableStateOf(false) }
+    var showEligible by remember { mutableStateOf(false) }
     val session = uiState.session
+
+    BackHandler(enabled = showEligible) {
+        showEligible = false
+    }
 
     Scaffold(
         containerColor = MinerColors.Ground
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             // Top Bar #4: Circular avatar + username on left; Master Switch on right
             Row(
                 modifier = Modifier
@@ -185,7 +189,8 @@ fun DashboardScreen(
                 onForceRefreshBadges = onForceRefreshBadges,
                 onTogglePause = onTogglePause,
                 onPinBadge = onPinBadge,
-                onOpenEligible = { showEligibleScreen = true },
+                eligibleExpanded = showEligible,
+                onToggleEligible = { showEligible = !showEligible },
                 badgesEnabled = uiState.badgesEnabled,
                 dropsEnabled = uiState.dropsEnabled
             )
@@ -204,19 +209,6 @@ fun DashboardScreen(
                 onClearLogs = onClearLogs,
                 modifier = Modifier.weight(1f)
             )
-        }
-
-        if (showEligibleScreen) {
-            EligibleListScreen(
-                snapshot = uiState.minerStatus,
-                badgesEnabled = uiState.badgesEnabled,
-                dropsEnabled = uiState.dropsEnabled,
-                onBack = { showEligibleScreen = false },
-                onPinBadge = onPinBadge,
-                onForceRefreshBadges = onForceRefreshBadges,
-                modifier = Modifier.padding(innerPadding)
-            )
-        }
         }
     }
 
