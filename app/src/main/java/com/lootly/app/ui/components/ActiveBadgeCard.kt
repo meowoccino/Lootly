@@ -1,7 +1,8 @@
 package com.lootly.app.ui.components
 
 import android.content.Intent
-import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -70,6 +71,7 @@ import coil.compose.AsyncImage
 import com.lootly.app.data.model.EligibleBadgeItem
 import com.lootly.app.data.model.MinerRunState
 import com.lootly.app.data.model.MinerStatusSnapshot
+import com.lootly.app.ui.login.LinkAccountActivity
 import com.lootly.app.ui.theme.MinerColors
 import kotlin.math.PI
 import kotlin.math.sin
@@ -92,6 +94,12 @@ fun ActiveBadgeCard(
 
     var showEligibleSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val linkAccountLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        onForceRefreshBadges()
+    }
     val refreshRotation = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
@@ -395,7 +403,6 @@ fun ActiveBadgeCard(
     }
 
     if (showEligibleSheet && sortedEligible.isNotEmpty()) {
-        val context = LocalContext.current
         ModalBottomSheet(
             onDismissRequest = { showEligibleSheet = false },
             sheetState = sheetState,
@@ -415,6 +422,7 @@ fun ActiveBadgeCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 420.dp)
+                    .padding(bottom = 12.dp)
                     .navigationBarsPadding(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -436,9 +444,10 @@ fun ActiveBadgeCard(
                             .clickable {
                                 if (isUnlinked) {
                                     val url = item.accountLinkUrl.ifBlank { "https://www.twitch.tv/drops/campaigns" }
-                                    runCatching {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    val intent = Intent(context, LinkAccountActivity::class.java).apply {
+                                        putExtra(LinkAccountActivity.EXTRA_URL, url)
                                     }
+                                    linkAccountLauncher.launch(intent)
                                     showEligibleSheet = false
                                 } else {
                                     onPinBadge(if (isPinned) null else item.badgeName)
