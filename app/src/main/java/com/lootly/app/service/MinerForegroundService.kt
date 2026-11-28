@@ -249,7 +249,15 @@ class MinerForegroundService : Service() {
     private suspend fun handleForceRefreshBadges() {
         val ok = processManager?.forceRefreshBadges() == true
         if (ok) {
-            app.minerRepository.appendAppLog(LogLevel.INFO, "Badge", "Triggered manual badge catalog refresh")
+            val badges = app.sessionStore.badgesEnabled.value
+            val drops = app.sessionStore.dropsEnabled.value
+            val msg = when {
+                badges && drops -> "Manual refresh triggered (badges & drops)"
+                badges -> "Manual refresh triggered (badges)"
+                drops -> "Manual refresh triggered (drops)"
+                else -> "Manual refresh triggered"
+            }
+            app.minerRepository.appendAppLog(LogLevel.INFO, "Badge", msg)
         }
     }
 
@@ -309,7 +317,10 @@ class MinerForegroundService : Service() {
                         gameName = event.gameName,
                         badgeImageUrl = event.badgeImageUrl,
                         requiredMinutes = event.requiredMinutes,
-                        endsAtIso = event.endsAtIso
+                        endsAtIso = event.endsAtIso,
+                        isDrop = event.isDrop,
+                        isLinked = event.isLinked,
+                        accountLinkUrl = event.accountLinkUrl
                     )
                 )
             }

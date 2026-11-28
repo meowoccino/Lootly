@@ -1,97 +1,132 @@
 package com.lootly.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CardGiftcard
+import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.lootly.app.ui.theme.MinerColors
 
 @Composable
 fun BadgesDropsCard(
     badgesEnabled: Boolean,
     dropsEnabled: Boolean,
+    autoPauseEnabled: Boolean,
     onBadgesToggle: (Boolean) -> Unit,
     onDropsToggle: (Boolean) -> Unit,
+    onAutoPauseToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val switchColors = SwitchDefaults.colors(
-        checkedThumbColor = MinerColors.Ground,
-        checkedTrackColor = MinerColors.TwitchViolet,
-        uncheckedThumbColor = MinerColors.TextSecondary,
-        uncheckedTrackColor = MinerColors.Hairline,
-        uncheckedBorderColor = MinerColors.Hairline
-    )
-
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MinerColors.Panel,
         border = BorderStroke(1.dp, MinerColors.Hairline)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Badges",
-                    color = MinerColors.TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
+                ControlIconBox(
+                    icon = Icons.Rounded.WorkspacePremium,
+                    contentDescription = "Badges",
+                    enabled = badgesEnabled,
+                    onClick = { onBadgesToggle(!badgesEnabled) }
                 )
-                Switch(
-                    checked = badgesEnabled,
-                    onCheckedChange = onBadgesToggle,
-                    colors = switchColors
+                ControlIconBox(
+                    icon = Icons.Rounded.CardGiftcard,
+                    contentDescription = "Drops",
+                    enabled = dropsEnabled,
+                    onClick = { onDropsToggle(!dropsEnabled) }
                 )
             }
 
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = Color(0xFF202230)
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(24.dp)
+                    .background(MinerColors.Hairline)
             )
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Drops",
-                    color = MinerColors.TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
+                ControlIconBox(
+                    icon = Icons.Rounded.Tv,
+                    contentDescription = "Auto-Pause on Twitch",
+                    enabled = autoPauseEnabled,
+                    onClick = { onAutoPauseToggle(!autoPauseEnabled) }
                 )
                 Switch(
-                    checked = dropsEnabled,
-                    onCheckedChange = onDropsToggle,
-                    colors = switchColors
+                    checked = autoPauseEnabled,
+                    onCheckedChange = onAutoPauseToggle,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MinerColors.Ground,
+                        checkedTrackColor = MinerColors.TwitchViolet,
+                        uncheckedThumbColor = MinerColors.TextSecondary,
+                        uncheckedTrackColor = MinerColors.Hairline,
+                        uncheckedBorderColor = MinerColors.Hairline
+                    )
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ControlIconBox(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .alpha(if (enabled) 1f else 0.35f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MinerColors.TwitchViolet.copy(alpha = 0.18f))
+            .border(1.dp, MinerColors.TwitchViolet.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(19.dp),
+            tint = MinerColors.TwitchVioletGlow
+        )
     }
 }

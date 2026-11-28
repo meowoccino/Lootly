@@ -1,5 +1,7 @@
 package com.lootly.app.ui.components
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,10 +50,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -370,6 +377,7 @@ fun ActiveBadgeCard(
     }
 
     if (showEligibleSheet && sortedEligible.isNotEmpty()) {
+        val context = LocalContext.current
         ModalBottomSheet(
             onDismissRequest = { showEligibleSheet = false },
             sheetState = sheetState,
@@ -379,6 +387,7 @@ fun ActiveBadgeCard(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 420.dp)
                     .navigationBarsPadding(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -390,22 +399,33 @@ fun ActiveBadgeCard(
                     val isPinned = !pinned.isNullOrBlank() &&
                         (item.badgeName.equals(pinned, ignoreCase = true) ||
                             item.campaignName.equals(pinned, ignoreCase = true))
+                    val isUnlinked = !item.isLinked
+                    val amber = Color(0xFFF5A623)
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .alpha(if (isUnlinked) 0.75f else 1f)
                             .clip(RoundedCornerShape(16.dp))
                             .clickable {
-                                onPinBadge(if (isPinned) null else item.badgeName)
-                                showEligibleSheet = false
+                                if (isUnlinked) {
+                                    val url = item.accountLinkUrl.ifBlank { "https://www.twitch.tv/drops/campaigns" }
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    }
+                                    showEligibleSheet = false
+                                } else {
+                                    onPinBadge(if (isPinned) null else item.badgeName)
+                                    showEligibleSheet = false
+                                }
                             },
                         shape = RoundedCornerShape(16.dp),
                         color = MinerColors.PanelRaised,
                         border = BorderStroke(
                             width = 1.dp,
-                            color = if (isPinned) {
-                                MinerColors.TwitchViolet.copy(alpha = 0.6f)
-                            } else {
-                                MinerColors.Hairline
+                            color = when {
+                                isUnlinked -> amber.copy(alpha = 0.25f)
+                                isPinned -> MinerColors.TwitchViolet.copy(alpha = 0.6f)
+                                else -> MinerColors.Hairline
                             }
                         )
                     ) {
@@ -463,6 +483,15 @@ fun ActiveBadgeCard(
                                 }
                             }
                             Spacer(modifier = Modifier.width(10.dp))
+                            if (isUnlinked) {
+                                Icon(
+                                    imageVector = Icons.Rounded.WarningAmber,
+                                    contentDescription = "Account not linked",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = amber
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
                             Text(
                                 text = "${item.requiredMinutes}m",
                                 color = MinerColors.TextSecondary,

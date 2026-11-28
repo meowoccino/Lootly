@@ -116,6 +116,9 @@ class MinerLogParser {
             val imageUrl = json.optString("badge_image_url").takeIf { it.isNotBlank() }
             val required = json.optInt("required_minutes", 30).let { if (it <= 0) 30 else it }
             val endsAt = json.optString("ends_at")
+            val isDrop = json.optBoolean("is_drop", false)
+            val isLinked = json.optBoolean("is_linked", true)
+            val accountLinkUrl = json.optString("account_link_url", "")
             return ParsedMinerEvent.BadgeCampaignEligible(
                 campaignName = campaign,
                 badgeName = badgeName,
@@ -123,7 +126,10 @@ class MinerLogParser {
                 gameName = game,
                 badgeImageUrl = imageUrl,
                 requiredMinutes = required,
-                endsAtIso = endsAt
+                endsAtIso = endsAt,
+                isDrop = isDrop,
+                isLinked = isLinked,
+                accountLinkUrl = accountLinkUrl
             )
         }
 

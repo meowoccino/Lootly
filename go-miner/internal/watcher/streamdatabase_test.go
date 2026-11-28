@@ -403,4 +403,22 @@ func TestConnectedInGameDropsFilteringAndPriority(t *testing.T) {
 	if len(mergedEligible) != 2 {
 		t.Fatalf("merged connectedInGameDropCampaigns = %d, want 2: %+v", len(mergedEligible), mergedEligible)
 	}
+	allDrops := allActiveInGameDropCampaigns(merged, now)
+	if len(allDrops) != 4 {
+		t.Fatalf("allActiveInGameDropCampaigns = %d, want 4 (2 linked + 2 unlinked)", len(allDrops))
+	}
+	var linkedCnt, unlinkedCnt int
+	for _, d := range allDrops {
+		if d.AccountLinkURL == "" {
+			t.Fatalf("expected non-empty AccountLinkURL for drop %q", d.Name)
+		}
+		if d.IsLinked {
+			linkedCnt++
+		} else {
+			unlinkedCnt++
+		}
+	}
+	if linkedCnt != 2 || unlinkedCnt != 2 {
+		t.Fatalf("linked=%d unlinked=%d, want 2 and 2", linkedCnt, unlinkedCnt)
+	}
 }

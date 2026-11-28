@@ -24,9 +24,11 @@ const (
 type badgeCampaign struct {
 	ID, Name, GameName, GameSlug string
 	BadgeImageURL                string
+	AccountLinkURL               string
 	StartsAt, EndsAt             time.Time
 	AllChannels                  bool
 	IsInGameDrop                 bool
+	IsLinked                     bool
 	HasAmbiguousDrops            bool
 	Channels                     []string
 	BadgeNames                   []string
@@ -550,13 +552,14 @@ func watchRequirement(requirement string) time.Duration {
 }
 
 type badgeInventoryCampaign struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Status   string    `json:"status"`
-	StartAt  time.Time `json:"startAt"`
-	EndAt    time.Time `json:"endAt"`
-	ImageURL string    `json:"imageURL"`
-	Game     struct {
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	Status         string    `json:"status"`
+	StartAt        time.Time `json:"startAt"`
+	EndAt          time.Time `json:"endAt"`
+	ImageURL       string    `json:"imageURL"`
+	AccountLinkURL string    `json:"accountLinkURL"`
+	Game           struct {
 		Slug        string `json:"slug"`
 		Name        string `json:"name"`
 		DisplayName string `json:"displayName"`
@@ -655,13 +658,17 @@ func mergeInventoryAndDashboardCampaigns(inventory, dashboard []badgeInventoryCa
 	return merged
 }
 
-// connectedInGameDropCampaigns extracts active, unclaimed watch-time in-game
-// drop campaigns from the user's Twitch inventory/dashboard, strictly requiring
-// isAccountConnected == true so unlinked games are never farmed.
-func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.Time) []badgeCampaign {
+const defaultDropsCampaignsURL = "https://www.twitch.tv/drops/campaigns"
+
+// allActiveInGameDropCampaigns extracts all active, unclaimed watch-time
+// in-game drop campaigns (both linked and unlinked) from the user's Twitch
+// inventory/dashboard. Linked campaigns have IsLinked=true and are eligible
+// for Auto-mining; unlinked campaigns have IsLinked=false and carry
+// AccountLinkURL so the UI can prompt the user to link their account.
+func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.Time) []badgeCampaign {
 	var out []badgeCampaign
 	for _, camp := range inventory {
-		if camp.ID == "" || camp.Self == nil || !camp.Self.IsAccountConnected {
+		if camp.ID == "" {
 			continue
 		}
 		if camp.Status != "" && !strings.EqualFold(camp.Status, "ACTIVE") {
@@ -672,6 +679,12 @@ func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 		}
 		if camp.EndAt.IsZero() || !camp.EndAt.After(now) {
 			continue
+		}
+
+		linked := camp.Self != nil && camp.Self.IsAccountConnected
+		linkURL := strings.TrimSpace(camp.AccountLinkURL)
+		if linkURL == "" {
+			linkURL = defaultDropsCampaignsURL
 		}
 
 		var (
@@ -721,7 +734,7 @@ func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 			}
 		}
 		// ViewerDropsDashboard omits timeBasedDrops until DropCampaignDetails is
-		// fetched; still surface connected active campaigns so they are eligible.
+		// fetched; still surface active campaigns so they appear in the queue.
 		if len(dropNames) == 0 && len(camp.Drops) == 0 && strings.TrimSpace(camp.Name) != "" {
 			dropNames = []string{strings.TrimSpace(camp.Name)}
 		}
@@ -751,19 +764,34 @@ func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 		}
 
 		out = append(out, badgeCampaign{
-			ID:            camp.ID,
-			Name:          camp.Name,
-			GameName:      gameName,
-			GameSlug:      gameSlug,
-			BadgeImageURL: imageURL,
-			StartsAt:      camp.StartAt,
-			EndsAt:        camp.EndAt,
-			AllChannels:   len(channels) == 0,
-			IsInGameDrop:  true,
-			Channels:      channels,
-			BadgeNames:    dropNames,
-			WatchTimes:    watchTimes,
+			ID:             camp.ID,
+			Name:           camp.Name,
+			GameName:       gameName,
+			GameSlug:       gameSlug,
+			BadgeImageURL:  imageURL,
+			AccountLinkURL: linkURL,
+			StartsAt:       camp.StartAt,
+			EndsAt:         camp.EndAt,
+			AllChannels:    len(channels) == 0,
+			IsInGameDrop:   true,
+			IsLinked:       linked,
+			Channels:       channels,
+			BadgeNames:     dropNames,
+			WatchTimes:     watchTimes,
 		})
+	}
+	return out
+}
+
+// connectedInGameDropCampaigns extracts active, unclaimed watch-time in-game
+// drop campaigns from the user's Twitch inventory/dashboard, strictly requiring
+// isAccountConnected == true so unlinked games are never auto-farmed.
+func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.Time) []badgeCampaign {
+	var out []badgeCampaign
+	for _, c := range allActiveInGameDropCampaigns(inventory, now) {
+		if c.IsLinked {
+			out = append(out, c)
+		}
 	}
 	return out
 }

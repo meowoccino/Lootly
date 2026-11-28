@@ -397,7 +397,9 @@ func (c *Client) GetAvailableCampaigns(ctx context.Context, channelID string) ([
 // GetDropsDashboard fetches drop campaigns from the viewer dashboard.
 // If status is non-empty, only campaigns with that status are returned.
 func (c *Client) GetDropsDashboard(ctx context.Context, status string) ([]json.RawMessage, error) {
-	data, err := c.PostGQL(ctx, constants.GQLViewerDropsDashboard, nil)
+	data, err := c.PostGQL(ctx, constants.GQLViewerDropsDashboard, map[string]any{
+		"fetchRewardCampaigns": false,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("GetDropsDashboard: %w", err)
 	}

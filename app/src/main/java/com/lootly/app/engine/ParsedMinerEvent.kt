@@ -18,7 +18,10 @@ sealed class ParsedMinerEvent {
         val gameName: String,
         val badgeImageUrl: String?,
         val requiredMinutes: Int,
-        val endsAtIso: String
+        val endsAtIso: String,
+        val isDrop: Boolean = false,
+        val isLinked: Boolean = true,
+        val accountLinkUrl: String = ""
     ) : ParsedMinerEvent()
 
     data class BadgeEvaluated(

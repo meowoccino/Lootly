@@ -69,6 +69,14 @@ var operationBehaviors = map[string]operationBehavior{
 	"TeamPage": {
 		failOnErrors: true,
 	},
+	"ViewerDropsDashboard": {
+		failOnErrors:    true,
+		tryAltClientIDs: true,
+	},
+	"DropCampaignDetails": {
+		failOnErrors:    true,
+		tryAltClientIDs: true,
+	},
 }
 
 // hasChannelFollowsData reports whether a ChannelFollows response contains the

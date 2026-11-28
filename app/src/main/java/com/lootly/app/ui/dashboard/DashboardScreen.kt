@@ -194,15 +194,10 @@ fun DashboardScreen(
             BadgesDropsCard(
                 badgesEnabled = uiState.badgesEnabled,
                 dropsEnabled = uiState.dropsEnabled,
+                autoPauseEnabled = uiState.autoPauseEnabled,
                 onBadgesToggle = onBadgesToggle,
-                onDropsToggle = onDropsToggle
-            )
-
-            AutoPauseCard(
-                enabled = uiState.autoPauseEnabled,
-                hasUsagePermission = uiState.permissionHealth.hasUsageAccess,
-                twitchAppOpen = uiState.minerStatus.twitchAppInForeground,
-                onToggle = onAutoPauseToggle
+                onDropsToggle = onDropsToggle,
+                onAutoPauseToggle = onAutoPauseToggle
             )
 
             LiveMinerConsoleCard(

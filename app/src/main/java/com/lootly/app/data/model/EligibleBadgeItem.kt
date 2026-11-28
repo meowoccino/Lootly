@@ -7,5 +7,8 @@ data class EligibleBadgeItem(
     val gameName: String,
     val badgeImageUrl: String? = null,
     val requiredMinutes: Int = 30,
-    val endsAtIso: String = ""
+    val endsAtIso: String = "",
+    val isDrop: Boolean = false,
+    val isLinked: Boolean = true,
+    val accountLinkUrl: String = ""
 )

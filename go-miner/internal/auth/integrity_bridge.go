@@ -22,6 +22,23 @@ type IntegrityBridgeResponse struct {
 	UserAgent       string `json:"user_agent"`
 }
 
+// ForceRefreshIntegrityToken invalidates any cached integrity token and
+// requests a fresh token from the Android WebView bridge (?force=1).
+func (a *Authenticator) ForceRefreshIntegrityToken(ctx context.Context) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.integrityToken = ""
+	a.integrityExpire = 0
+	resp, err := a.fetchIntegrityFromBridge(ctx, true)
+	if err != nil {
+		return "", err
+	}
+	if resp == nil {
+		return "", nil
+	}
+	return a.integrityToken, nil
+}
+
 // fetchIntegrityFromBridge queries the local loopback Android WebView integrity
 // bridge when TWITCH_INTEGRITY_BRIDGE_URL is configured.
 // Caller must hold a.mu.

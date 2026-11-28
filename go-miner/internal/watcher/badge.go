@@ -128,27 +128,36 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		}
 	}
 	allInventoryCampaigns := inventory.Campaigns
-	var dashActive, dashConnected int
+	var dashActive int
 	if dashGQL, ok := bw.gql.(dropsDashboardGQL); ok {
 		if rawDash, err := dashGQL.GetDropsDashboard(ctx, "ACTIVE"); err != nil {
 			bw.log.Warn("Failed to load ViewerDropsDashboard for in-game drops", "error", err)
 		} else {
 			var dashCampaigns []badgeInventoryCampaign
-			dashCampaigns, dashActive, dashConnected = parseDashboardDropCampaigns(rawDash)
+			dashCampaigns, dashActive, _ = parseDashboardDropCampaigns(rawDash)
 			allInventoryCampaigns = mergeInventoryAndDashboardCampaigns(inventory.Campaigns, dashCampaigns)
 		}
 	}
-	inGameEligible := 0
-	for _, c := range connectedInGameDropCampaigns(allInventoryCampaigns, now) {
+	var (
+		unlinkedDrops []badgeCampaign
+		linkedCount   int
+		unlinkedCount int
+	)
+	for _, c := range allActiveInGameDropCampaigns(allInventoryCampaigns, now) {
 		if _, exists := eligible[c.ID]; exists || campaignCompleted(c, completed) {
 			continue
 		}
-		eligible[c.ID] = c
-		eligibleOrdered = append(eligibleOrdered, c)
-		rewards[c.ID] = c.nextReward(nil, allInventoryCampaigns, now)
-		inGameEligible++
+		if c.IsLinked {
+			eligible[c.ID] = c
+			eligibleOrdered = append(eligibleOrdered, c)
+			rewards[c.ID] = c.nextReward(nil, allInventoryCampaigns, now)
+			linkedCount++
+		} else {
+			unlinkedDrops = append(unlinkedDrops, c)
+			unlinkedCount++
+		}
 	}
-	bw.log.Info("In-game drops scanned", "active", dashActive, "connected", dashConnected, "eligible", inGameEligible)
+	bw.log.Info("In-game drops scanned", "active", dashActive, "linked", linkedCount, "unlinked", unlinkedCount)
 	sort.SliceStable(eligibleOrdered, func(i, j int) bool {
 		if eligibleOrdered[i].IsInGameDrop != eligibleOrdered[j].IsInGameDrop {
 			return !eligibleOrdered[i].IsInGameDrop
@@ -207,7 +216,7 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		reserved[strings.ToLower(tr.username)] = true
 	}
 	bw.mu.Unlock()
-	for _, c := range eligibleOrdered {
+	emitEligible := func(c badgeCampaign, isLinked bool) {
 		badgeName := c.Name
 		if len(c.BadgeNames) > 0 {
 			badgeName = c.BadgeNames[0]
@@ -226,7 +235,16 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			"badge_image_url", c.BadgeImageURL,
 			"required_minutes", reqMinutes,
 			"ends_at", c.EndsAt.UTC().Format(time.RFC3339),
+			"is_drop", c.IsInGameDrop,
+			"is_linked", isLinked,
+			"account_link_url", c.AccountLinkURL,
 		)
+	}
+	for _, c := range eligibleOrdered {
+		emitEligible(c, !c.IsInGameDrop || c.IsLinked)
+	}
+	for _, c := range unlinkedDrops {
+		emitEligible(c, false)
 	}
 	bw.log.Info("🏅 Badge campaigns evaluated", "catalog", len(campaigns), "eligible", len(eligibleOrdered), "active", used, "owned_badges", len(owned), "completed_campaigns", len(completed))
 	campaignLookupCache := make(map[string]badgeCampaignLookup)
