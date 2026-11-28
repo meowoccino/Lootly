@@ -539,6 +539,7 @@ fun ActiveBadgeCard(
                         }
                     }
                 }
+                }
                 Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -548,5 +549,4 @@ fun ActiveBadgeCard(
             }
         }
     }
-}
 }
