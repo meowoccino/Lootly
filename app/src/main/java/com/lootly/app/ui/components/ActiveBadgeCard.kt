@@ -403,8 +403,9 @@ fun ActiveBadgeCard(
                 val listHeight = minOf(sortedEligible.size * 58, 220).dp
                 Column(modifier = Modifier.fillMaxWidth()) {
                     HorizontalDivider(
-                        thickness = 0.5.dp,
-                        color = Color(0xFF262837)
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        thickness = 1.dp,
+                        color = Color(0xFF32364A)
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     LazyColumn(
