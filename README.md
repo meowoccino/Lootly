@@ -1,7 +1,5 @@
 <div align="center">
 
-# Lootly
-
 **Twitch Watch-Time Badge & In-Game Drops Miner for Android**
 
 ![Architecture](https://img.shields.io/badge/arch-arm64--v8a-blue)
