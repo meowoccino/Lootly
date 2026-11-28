@@ -480,6 +480,28 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 	}
 	bw.mu.Unlock()
 	emitEligible := func(c badgeCampaign, isLinked bool) {
+		if c.IsInGameDrop && len(c.BadgeNames) > 1 {
+			for _, tierName := range c.BadgeNames {
+				reqMinutes := int(c.WatchTimes[tierName] / time.Minute)
+				imgURL := c.BadgeImageURLs[tierName]
+				if imgURL == "" {
+					imgURL = c.BadgeImageURL
+				}
+				bw.log.Info("Badge campaign eligible",
+					"campaign", c.Name,
+					"badge_name", tierName,
+					"badges", tierName,
+					"game", c.GameName,
+					"badge_image_url", imgURL,
+					"required_minutes", reqMinutes,
+					"ends_at", c.EndsAt.UTC().Format(time.RFC3339),
+					"is_drop", true,
+					"is_linked", isLinked,
+					"account_link_url", c.AccountLinkURL,
+				)
+			}
+			return
+		}
 		badgeName := c.Name
 		if len(c.BadgeNames) > 0 {
 			badgeName = c.BadgeNames[0]

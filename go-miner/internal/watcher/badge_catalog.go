@@ -24,6 +24,7 @@ const (
 type badgeCampaign struct {
 	ID, Name, GameName, GameSlug string
 	BadgeImageURL                string
+	BadgeImageURLs               map[string]string
 	AccountLinkURL               string
 	StartsAt, EndsAt             time.Time
 	AllChannels                  bool
@@ -720,9 +721,10 @@ func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 		}
 
 		var (
-			dropNames  []string
-			watchTimes = make(map[string]time.Duration)
-			imageURL   string
+			dropNames     []string
+			watchTimes    = make(map[string]time.Duration)
+			tierImages    = make(map[string]string)
+			imageURL      string
 		)
 		for _, drop := range camp.Drops {
 			if drop.RequiredMinutes <= 0 || drop.RequiredSubs > 0 {
@@ -748,23 +750,35 @@ func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 			}
 
 			name := strings.TrimSpace(drop.Name)
+			dropImg := ""
 			if len(drop.Benefits) > 0 {
 				if bName := strings.TrimSpace(drop.Benefits[0].Benefit.Name); bName != "" {
 					name = bName
 				}
-				if imageURL == "" && drop.Benefits[0].Benefit.ImageAssetURL != "" {
-					imageURL = drop.Benefits[0].Benefit.ImageAssetURL
+				dropImg = drop.Benefits[0].Benefit.ImageAssetURL
+				if imageURL == "" && dropImg != "" {
+					imageURL = dropImg
 				}
 			}
 			if name == "" {
 				continue
 			}
-			dropNames = appendUnique(dropNames, name)
-			dur := time.Duration(remaining) * time.Minute
-			if watchTimes[name] == 0 || dur < watchTimes[name] {
-				watchTimes[name] = dur
+			// If multiple tiers share the same benefit name (e.g. "CFB Twitch Pack"
+			// at 60m, 120m, 180m, 240m), disambiguate so every unclaimed tier appears
+			// as its own entry in the Eligible list.
+			if _, exists := watchTimes[name]; exists {
+				name = fmt.Sprintf("%s (%dm)", name, drop.RequiredMinutes)
+			}
+			dropNames = append(dropNames, name)
+			watchTimes[name] = time.Duration(remaining) * time.Minute
+			if dropImg != "" {
+				tierImages[name] = dropImg
 			}
 		}
+		// Keep lowest remaining duration (active/next unclaimed tier) first.
+		sort.SliceStable(dropNames, func(i, j int) bool {
+			return watchTimes[dropNames[i]] < watchTimes[dropNames[j]]
+		})
 		// ViewerDropsDashboard omits timeBasedDrops until DropCampaignDetails is
 		// fetched; still surface active campaigns so they appear in the queue.
 		if len(dropNames) == 0 && len(camp.Drops) == 0 && strings.TrimSpace(camp.Name) != "" {
@@ -808,6 +822,7 @@ func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 			GameName:       gameName,
 			GameSlug:       gameSlug,
 			BadgeImageURL:  imageURL,
+			BadgeImageURLs: tierImages,
 			AccountLinkURL: linkURL,
 			StartsAt:       camp.StartAt,
 			EndsAt:         camp.EndAt,
