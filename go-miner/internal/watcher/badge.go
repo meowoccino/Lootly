@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -251,7 +252,7 @@ func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, remove func(str
 			continue
 		}
 
-		// 4-minute stall watchdog: if watched_minutes hasn't increased for 4
+		// 2-minute stall watchdog: if watched_minutes hasn't increased for 2
 		// consecutive 60s ticks, skip this streamer for 30 minutes and switch.
 		bw.mu.Lock()
 		cur, stillTracked := bw.tracked[id]
@@ -263,7 +264,7 @@ func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, remove func(str
 			} else {
 				cur.stalledTicks++
 			}
-			if cur.stalledTicks >= 4 {
+			if cur.stalledTicks >= 2 {
 				stalled = true
 				bw.stalledSkipUntil[strings.ToLower(cur.username)] = now.Add(30 * time.Minute)
 				delete(bw.tracked, id)
@@ -274,7 +275,7 @@ func (bw *BadgeWatcher) syncTrackedProgress(ctx context.Context, remove func(str
 		bw.mu.Unlock()
 
 		if stalled {
-			bw.log.Warn("Stream stalled (no progress for 4m) — switching stream", "streamer", tr.username, "campaign", camp.Name)
+			bw.log.Warn("Stream stalled (no progress for 2m) — switching stream", "streamer", tr.username, "campaign", camp.Name)
 			if tr.added {
 				remove(tr.username, "badge_stream_stalled")
 			} else {
@@ -642,7 +643,7 @@ func (bw *BadgeWatcher) findCampaignCandidate(ctx context.Context, campaign badg
 			directoryErrors = append(directoryErrors, err)
 			continue
 		}
-		candidate, failures, lookupErr := bw.pickEligibleCampaignCandidate(ctx, streams, reserved, lookupCache)
+		candidate, failures, lookupErr := bw.pickEligibleCampaignCandidate(ctx, campaign, streams, reserved, lookupCache)
 		lookupFailures += failures
 		if lookupErr != nil {
 			lastLookupErr = lookupErr
@@ -671,7 +672,7 @@ func (bw *BadgeWatcher) logCampaignCandidateWarnings(campaign badgeCampaign, loo
 	}
 }
 
-func (bw *BadgeWatcher) pickEligibleCampaignCandidate(ctx context.Context, streams []gql.TopStream, reserved map[string]bool, cache map[string]badgeCampaignLookup) (*badgeCandidate, int, error) {
+func (bw *BadgeWatcher) pickEligibleCampaignCandidate(ctx context.Context, campaign badgeCampaign, streams []gql.TopStream, reserved map[string]bool, cache map[string]badgeCampaignLookup) (*badgeCandidate, int, error) {
 	failures := 0
 	var lastErr error
 	for i := range streams {
@@ -695,10 +696,15 @@ func (bw *BadgeWatcher) pickEligibleCampaignCandidate(ctx context.Context, strea
 		if lookup.err != nil {
 			continue
 		}
-		// Catalog IDs (such as twitchdrops-app-*) and Twitch campaign IDs are
-		// different namespaces. The catalog identifies the badge campaign for
-		// this game; Twitch confirms that the channel exposes active Drops.
-		if len(lookup.ids) > 0 {
+		// For in-game drops, campaign.ID is a real Twitch drop campaign UUID, so
+		// require an exact match in lookup.ids so we never watch a streamer who
+		// only has a different drop campaign active. For synthetic badge catalog
+		// IDs, fall back to verifying that the channel exposes any active Drops.
+		matched := len(lookup.ids) > 0
+		if campaign.IsInGameDrop && campaign.ID != "" {
+			matched = slices.Contains(lookup.ids, campaign.ID)
+		}
+		if matched {
 			return &badgeCandidate{stream: stream, campaignIDs: lookup.ids}, failures, lastErr
 		}
 	}
