@@ -26,6 +26,12 @@ class TwitchSessionStore(private val context: Context) {
     private val _usageCardDismissed = MutableStateFlow(prefs.getBoolean(KEY_USAGE_DISMISSED, false))
     val usageCardDismissed: StateFlow<Boolean> = _usageCardDismissed.asStateFlow()
 
+    private val _badgesEnabled = MutableStateFlow(prefs.getBoolean(KEY_BADGES_ENABLED, true))
+    val badgesEnabled: StateFlow<Boolean> = _badgesEnabled.asStateFlow()
+
+    private val _dropsEnabled = MutableStateFlow(prefs.getBoolean(KEY_DROPS_ENABLED, true))
+    val dropsEnabled: StateFlow<Boolean> = _dropsEnabled.asStateFlow()
+
     private fun createEncryptedPrefs(context: Context): SharedPreferences {
         return try {
             val masterKey = MasterKey.Builder(context)
@@ -114,6 +120,16 @@ class TwitchSessionStore(private val context: Context) {
         _usageCardDismissed.value = dismissed
     }
 
+    fun setBadgesEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BADGES_ENABLED, enabled).apply()
+        _badgesEnabled.value = enabled
+    }
+
+    fun setDropsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_DROPS_ENABLED, enabled).apply()
+        _dropsEnabled.value = enabled
+    }
+
     fun clearSessionAndCookies() {
         prefs.edit()
             .remove(KEY_AUTH_TOKEN)
@@ -153,6 +169,8 @@ class TwitchSessionStore(private val context: Context) {
         private const val KEY_CAPTURED_AT = "captured_at"
         private const val KEY_AUTO_PAUSE = "auto_pause_enabled"
         private const val KEY_USAGE_DISMISSED = "usage_onboarding_dismissed"
+        private const val KEY_BADGES_ENABLED = "badges_enabled"
+        private const val KEY_DROPS_ENABLED = "drops_enabled"
 
         fun generateFallbackDeviceId(): String {
             val chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

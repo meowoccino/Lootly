@@ -37,6 +37,10 @@ type badgeGQL interface {
 	GetAvailableCampaigns(context.Context, string) ([]string, error)
 }
 
+type dropsDashboardGQL interface {
+	GetDropsDashboard(ctx context.Context, status string) ([]json.RawMessage, error)
+}
+
 type badgeTracked struct {
 	username string
 	added    bool
@@ -123,14 +127,28 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			rewards[c.ID] = c.nextReward(owned, inventory.Campaigns, now)
 		}
 	}
-	for _, c := range connectedInGameDropCampaigns(inventory.Campaigns, now) {
+	allInventoryCampaigns := inventory.Campaigns
+	var dashActive, dashConnected int
+	if dashGQL, ok := bw.gql.(dropsDashboardGQL); ok {
+		if rawDash, err := dashGQL.GetDropsDashboard(ctx, "ACTIVE"); err != nil {
+			bw.log.Warn("Failed to load ViewerDropsDashboard for in-game drops", "error", err)
+		} else {
+			var dashCampaigns []badgeInventoryCampaign
+			dashCampaigns, dashActive, dashConnected = parseDashboardDropCampaigns(rawDash)
+			allInventoryCampaigns = mergeInventoryAndDashboardCampaigns(inventory.Campaigns, dashCampaigns)
+		}
+	}
+	inGameEligible := 0
+	for _, c := range connectedInGameDropCampaigns(allInventoryCampaigns, now) {
 		if _, exists := eligible[c.ID]; exists || campaignCompleted(c, completed) {
 			continue
 		}
 		eligible[c.ID] = c
 		eligibleOrdered = append(eligibleOrdered, c)
-		rewards[c.ID] = c.nextReward(nil, inventory.Campaigns, now)
+		rewards[c.ID] = c.nextReward(nil, allInventoryCampaigns, now)
+		inGameEligible++
 	}
+	bw.log.Info("In-game drops scanned", "active", dashActive, "connected", dashConnected, "eligible", inGameEligible)
 	sort.SliceStable(eligibleOrdered, func(i, j int) bool {
 		if eligibleOrdered[i].IsInGameDrop != eligibleOrdered[j].IsInGameDrop {
 			return !eligibleOrdered[i].IsInGameDrop

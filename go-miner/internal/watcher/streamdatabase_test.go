@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -386,5 +387,20 @@ func TestConnectedInGameDropsFilteringAndPriority(t *testing.T) {
 	}
 	if got[0].WatchTimes["Apex Weapon Charm Reward"] != 45*time.Minute {
 		t.Fatalf("remaining WatchTime = %v, want 45m", got[0].WatchTimes["Apex Weapon Charm Reward"])
+	}
+
+	// Verify ViewerDropsDashboard parsing (active vs connected) and merging with inventory.
+	rawDash := []json.RawMessage{
+		json.RawMessage(`{"id":"dash-connected","name":"Rust Twitch Drops","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","imageURL":"https://cdn.example/rust.png","game":{"slug":"rust","displayName":"Rust"},"self":{"isAccountConnected":true}}`),
+		json.RawMessage(`{"id":"dash-unlinked","name":"Unlinked Game Drops","status":"ACTIVE","endAt":"2026-05-12T12:00:00Z","game":{"slug":"other","displayName":"Other"},"self":{"isAccountConnected":false}}`),
+	}
+	dashCampaigns, activeCount, connectedCount := parseDashboardDropCampaigns(rawDash)
+	if activeCount != 2 || connectedCount != 1 {
+		t.Fatalf("parseDashboardDropCampaigns = (active=%d, connected=%d), want (2, 1)", activeCount, connectedCount)
+	}
+	merged := mergeInventoryAndDashboardCampaigns(inventory, dashCampaigns)
+	mergedEligible := connectedInGameDropCampaigns(merged, now)
+	if len(mergedEligible) != 2 {
+		t.Fatalf("merged connectedInGameDropCampaigns = %d, want 2: %+v", len(mergedEligible), mergedEligible)
 	}
 }

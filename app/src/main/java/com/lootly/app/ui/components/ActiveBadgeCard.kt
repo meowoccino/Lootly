@@ -209,10 +209,11 @@ fun ActiveBadgeCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        val title = active?.badgeName ?: when (snapshot.runState) {
-                            MinerRunState.STANDBY_NO_BADGES -> "All Badges Earned"
-                            MinerRunState.STOPPED -> "Miner Stopped"
-                            else -> "Scanning Badges…"
+                        val title = active?.badgeName ?: when {
+                            snapshot.runState.isPaused -> "Paused"
+                            snapshot.runState == MinerRunState.STANDBY_NO_BADGES -> "All Caught Up"
+                            snapshot.runState == MinerRunState.STOPPED -> "Miner Stopped"
+                            else -> "Scanning…"
                         }
                         Text(
                             text = title,
@@ -260,10 +261,11 @@ fun ActiveBadgeCard(
                             }
                         }.ifBlank { active.campaignName }
                     } else {
-                        when (snapshot.runState) {
-                            MinerRunState.STANDBY_NO_BADGES -> "Standby · scans every 1h"
-                            MinerRunState.STOPPED -> "Toggle switch above to start"
-                            else -> "Checking Twitch & StreamDatabase"
+                        when {
+                            snapshot.runState.isPaused -> "Tap Resume to continue"
+                            snapshot.runState == MinerRunState.STANDBY_NO_BADGES -> "Standby · checks hourly"
+                            snapshot.runState == MinerRunState.STOPPED -> "Toggle switch above to start"
+                            else -> "Checking badges & drops"
                         }
                     }
                     Text(

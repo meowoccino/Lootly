@@ -25,7 +25,9 @@ data class DashboardUiState(
     val logs: List<LogEntry> = emptyList(),
     val permissionHealth: PermissionHealth = PermissionHealth(),
     val autoPauseEnabled: Boolean = true,
-    val usageCardDismissed: Boolean = false
+    val usageCardDismissed: Boolean = false,
+    val badgesEnabled: Boolean = true,
+    val dropsEnabled: Boolean = true
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -42,7 +44,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         minerRepository.logs,
         _permissionHealth,
         sessionStore.autoPauseEnabled,
-        sessionStore.usageCardDismissed
+        sessionStore.usageCardDismissed,
+        sessionStore.badgesEnabled,
+        sessionStore.dropsEnabled
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         DashboardUiState(
@@ -51,7 +55,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             logs = values[2] as List<LogEntry>,
             permissionHealth = values[3] as PermissionHealth,
             autoPauseEnabled = values[4] as Boolean,
-            usageCardDismissed = values[5] as Boolean
+            usageCardDismissed = values[5] as Boolean,
+            badgesEnabled = values[6] as Boolean,
+            dropsEnabled = values[7] as Boolean
         )
     }.stateIn(
         scope = viewModelScope,
@@ -62,7 +68,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             logs = minerRepository.logs.value,
             permissionHealth = _permissionHealth.value,
             autoPauseEnabled = sessionStore.autoPauseEnabled.value,
-            usageCardDismissed = sessionStore.usageCardDismissed.value
+            usageCardDismissed = sessionStore.usageCardDismissed.value,
+            badgesEnabled = sessionStore.badgesEnabled.value,
+            dropsEnabled = sessionStore.dropsEnabled.value
         )
     )
 
@@ -137,6 +145,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             "Auto-Pause",
             if (enabled) "Auto-Pause on Twitch app enabled" else "Auto-Pause on Twitch app disabled"
         )
+    }
+
+    fun onBadgesToggle(enabled: Boolean) {
+        sessionStore.setBadgesEnabled(enabled)
+    }
+
+    fun onDropsToggle(enabled: Boolean) {
+        sessionStore.setDropsEnabled(enabled)
     }
 
     fun onDismissUsageOnboarding() {

@@ -594,8 +594,69 @@ type badgeInventoryDrop struct {
 	} `json:"self"`
 }
 
+// parseDashboardDropCampaigns parses raw campaign JSON items from
+// ViewerDropsDashboard into badgeInventoryCampaign entries and reports how many
+// are active vs connected (isAccountConnected == true).
+func parseDashboardDropCampaigns(rawItems []json.RawMessage) (campaigns []badgeInventoryCampaign, activeCount, connectedCount int) {
+	activeCount = len(rawItems)
+	for _, raw := range rawItems {
+		var camp badgeInventoryCampaign
+		if err := json.Unmarshal(raw, &camp); err != nil || camp.ID == "" {
+			continue
+		}
+		if camp.Self != nil && camp.Self.IsAccountConnected {
+			connectedCount++
+		}
+		campaigns = append(campaigns, camp)
+	}
+	return campaigns, activeCount, connectedCount
+}
+
+// mergeInventoryAndDashboardCampaigns combines dropCampaignsInProgress (which
+// has live watched-minute progress) with ViewerDropsDashboard active campaigns
+// (which discovers new connected campaigns not yet started).
+func mergeInventoryAndDashboardCampaigns(inventory, dashboard []badgeInventoryCampaign) []badgeInventoryCampaign {
+	byID := make(map[string]badgeInventoryCampaign, len(inventory)+len(dashboard))
+	order := make([]string, 0, len(inventory)+len(dashboard))
+	for _, c := range inventory {
+		if c.ID == "" {
+			continue
+		}
+		byID[c.ID] = c
+		order = append(order, c.ID)
+	}
+	for _, c := range dashboard {
+		if c.ID == "" {
+			continue
+		}
+		if existing, ok := byID[c.ID]; ok {
+			if existing.Self == nil && c.Self != nil {
+				existing.Self = c.Self
+			}
+			if existing.ImageURL == "" && c.ImageURL != "" {
+				existing.ImageURL = c.ImageURL
+			}
+			if existing.Status == "" && c.Status != "" {
+				existing.Status = c.Status
+			}
+			if len(existing.Drops) == 0 && len(c.Drops) > 0 {
+				existing.Drops = c.Drops
+			}
+			byID[c.ID] = existing
+			continue
+		}
+		byID[c.ID] = c
+		order = append(order, c.ID)
+	}
+	merged := make([]badgeInventoryCampaign, 0, len(order))
+	for _, id := range order {
+		merged = append(merged, byID[id])
+	}
+	return merged
+}
+
 // connectedInGameDropCampaigns extracts active, unclaimed watch-time in-game
-// drop campaigns from the user's Twitch inventory, strictly requiring
+// drop campaigns from the user's Twitch inventory/dashboard, strictly requiring
 // isAccountConnected == true so unlinked games are never farmed.
 func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.Time) []badgeCampaign {
 	var out []badgeCampaign
@@ -658,6 +719,11 @@ func connectedInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 			if watchTimes[name] == 0 || dur < watchTimes[name] {
 				watchTimes[name] = dur
 			}
+		}
+		// ViewerDropsDashboard omits timeBasedDrops until DropCampaignDetails is
+		// fetched; still surface connected active campaigns so they are eligible.
+		if len(dropNames) == 0 && len(camp.Drops) == 0 && strings.TrimSpace(camp.Name) != "" {
+			dropNames = []string{strings.TrimSpace(camp.Name)}
 		}
 		if len(dropNames) == 0 {
 			continue

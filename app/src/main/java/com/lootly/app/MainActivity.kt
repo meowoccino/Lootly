@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
                     onTogglePause = { viewModel.onTogglePause() },
                     onForceRefreshBadges = { viewModel.onForceRefreshBadges() },
                     onPinBadge = { campaign -> viewModel.onPinBadge(campaign) },
+                    onBadgesToggle = { enabled -> viewModel.onBadgesToggle(enabled) },
+                    onDropsToggle = { enabled -> viewModel.onDropsToggle(enabled) },
                     onAutoPauseToggle = { enabled -> viewModel.onAutoPauseToggle(enabled) },
                     onOpenUsageSettings = { PermissionHelper.openUsageAccessSettings(this@MainActivity) },
                     onRequestBatteryExemption = { PermissionHelper.requestIgnoreBatteryOptimizations(this@MainActivity) },

@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.lootly.app.ui.components.ActiveBadgeCard
 import com.lootly.app.ui.components.AutoPauseCard
+import com.lootly.app.ui.components.BadgesDropsCard
 import com.lootly.app.ui.components.LiveMinerConsoleCard
 import com.lootly.app.ui.components.PermissionHealthBar
 import com.lootly.app.ui.theme.MinerColors
@@ -56,6 +59,8 @@ fun DashboardScreen(
     onTogglePause: () -> Unit,
     onForceRefreshBadges: () -> Unit,
     onPinBadge: (String?) -> Unit,
+    onBadgesToggle: (Boolean) -> Unit,
+    onDropsToggle: (Boolean) -> Unit,
     onAutoPauseToggle: (Boolean) -> Unit,
     onOpenUsageSettings: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
@@ -75,6 +80,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -185,6 +191,13 @@ fun DashboardScreen(
                 onPinBadge = onPinBadge
             )
 
+            BadgesDropsCard(
+                badgesEnabled = uiState.badgesEnabled,
+                dropsEnabled = uiState.dropsEnabled,
+                onBadgesToggle = onBadgesToggle,
+                onDropsToggle = onDropsToggle
+            )
+
             AutoPauseCard(
                 enabled = uiState.autoPauseEnabled,
                 hasUsagePermission = uiState.permissionHealth.hasUsageAccess,
@@ -196,8 +209,7 @@ fun DashboardScreen(
                 logs = uiState.logs,
                 onClearLogs = onClearLogs,
                 expanded = consoleExpanded,
-                onExpandedChange = { consoleExpanded = it },
-                modifier = if (consoleExpanded) Modifier.weight(1f) else Modifier
+                onExpandedChange = { consoleExpanded = it }
             )
         }
     }
