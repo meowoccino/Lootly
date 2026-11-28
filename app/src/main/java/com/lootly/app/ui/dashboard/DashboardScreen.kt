@@ -67,11 +67,23 @@ fun DashboardScreen(
 ) {
     val haptics = LocalHapticFeedback.current
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showEligibleScreen by remember { mutableStateOf(false) }
     val session = uiState.session
 
     Scaffold(
         containerColor = MinerColors.Ground
     ) { innerPadding ->
+        if (showEligibleScreen) {
+            EligibleListScreen(
+                snapshot = uiState.minerStatus,
+                badgesEnabled = uiState.badgesEnabled,
+                dropsEnabled = uiState.dropsEnabled,
+                onBack = { showEligibleScreen = false },
+                onPinBadge = onPinBadge,
+                onForceRefreshBadges = onForceRefreshBadges,
+                modifier = Modifier.padding(innerPadding)
+            )
+        } else {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -183,6 +195,7 @@ fun DashboardScreen(
                 onForceRefreshBadges = onForceRefreshBadges,
                 onTogglePause = onTogglePause,
                 onPinBadge = onPinBadge,
+                onOpenEligible = { showEligibleScreen = true },
                 badgesEnabled = uiState.badgesEnabled,
                 dropsEnabled = uiState.dropsEnabled
             )
@@ -201,6 +214,7 @@ fun DashboardScreen(
                 onClearLogs = onClearLogs,
                 modifier = Modifier.weight(1f)
             )
+        }
         }
     }
 

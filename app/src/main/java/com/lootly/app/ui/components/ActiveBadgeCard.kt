@@ -1,8 +1,5 @@
 package com.lootly.app.ui.components
 
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -19,52 +16,31 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WorkspacePremium
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,19 +50,18 @@ import coil.compose.AsyncImage
 import com.lootly.app.data.model.EligibleBadgeItem
 import com.lootly.app.data.model.MinerRunState
 import com.lootly.app.data.model.MinerStatusSnapshot
-import com.lootly.app.ui.login.LinkAccountActivity
 import com.lootly.app.ui.theme.MinerColors
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveBadgeCard(
     snapshot: MinerStatusSnapshot,
     onForceRefreshBadges: () -> Unit,
     onTogglePause: () -> Unit,
     onPinBadge: (String?) -> Unit = {},
+    onOpenEligible: () -> Unit = {},
     badgesEnabled: Boolean = true,
     dropsEnabled: Boolean = true,
     modifier: Modifier = Modifier
@@ -95,14 +70,6 @@ fun ActiveBadgeCard(
     val pinned = snapshot.pinnedCampaign
     val isPaused = snapshot.runState.isPaused || !snapshot.runState.isServiceActive
 
-    var showEligibleSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val context = LocalContext.current
-    val linkAccountLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        onForceRefreshBadges()
-    }
     val refreshRotation = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
@@ -325,19 +292,10 @@ fun ActiveBadgeCard(
                         .weight(1f)
                         .height(40.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .clickable(enabled = sortedEligible.isNotEmpty()) {
-                            showEligibleSheet = true
-                        },
+                        .clickable(enabled = sortedEligible.isNotEmpty(), onClick = onOpenEligible),
                     shape = RoundedCornerShape(999.dp),
                     color = MinerColors.PanelRaised,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (showEligibleSheet) {
-                            MinerColors.TwitchViolet.copy(alpha = 0.55f)
-                        } else {
-                            MinerColors.Hairline
-                        }
-                    )
+                    border = BorderStroke(1.dp, MinerColors.Hairline)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         val eligibleCount = sortedEligible.size
@@ -401,156 +359,6 @@ fun ActiveBadgeCard(
                         )
                     }
                 }
-            }
-        }
-    }
-
-    val activityNavBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-
-    if (showEligibleSheet && sortedEligible.isNotEmpty()) {
-        ModalBottomSheet(
-            onDismissRequest = { showEligibleSheet = false },
-            sheetState = sheetState,
-            containerColor = Color(0xFF14161F),
-            contentColor = MinerColors.TextPrimary,
-            contentWindowInsets = { WindowInsets(0) }
-        ) {
-            val view = LocalView.current
-            SideEffect {
-                val window = (view.parent as? DialogWindowProvider)?.window
-                if (window != null) {
-                    WindowCompat.setDecorFitsSystemWindows(window, true)
-                    @Suppress("DEPRECATION")
-                    window.navigationBarColor = 0xFF14161F.toInt()
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
-                }
-            }
-            Column(modifier = Modifier.fillMaxWidth()) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .clipToBounds(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                items(
-                    items = sortedEligible,
-                    key = { "${it.campaignName}::${it.badgeName}" }
-                ) { item ->
-                    val isPinned = !pinned.isNullOrBlank() &&
-                        (item.badgeName.equals(pinned, ignoreCase = true) ||
-                            item.campaignName.equals(pinned, ignoreCase = true))
-                    val isUnlinked = !item.isLinked
-                    val amber = Color(0xFFF5A623)
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .alpha(if (isUnlinked) 0.75f else 1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable {
-                                if (isUnlinked) {
-                                    val url = item.accountLinkUrl.ifBlank { "https://www.twitch.tv/drops/campaigns" }
-                                    val intent = Intent(context, LinkAccountActivity::class.java).apply {
-                                        putExtra(LinkAccountActivity.EXTRA_URL, url)
-                                    }
-                                    linkAccountLauncher.launch(intent)
-                                    showEligibleSheet = false
-                                } else {
-                                    onPinBadge(if (isPinned) null else item.badgeName)
-                                    showEligibleSheet = false
-                                }
-                            },
-                        shape = RoundedCornerShape(16.dp),
-                        color = MinerColors.PanelRaised,
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = when {
-                                isUnlinked -> amber.copy(alpha = 0.25f)
-                                isPinned -> MinerColors.TwitchViolet.copy(alpha = 0.6f)
-                                else -> MinerColors.Hairline
-                            }
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MinerColors.Ground),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (!item.badgeImageUrl.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = item.badgeImageUrl,
-                                        contentDescription = item.badgeName,
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Rounded.WorkspacePremium,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MinerColors.TwitchVioletGlow
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = item.badgeName,
-                                    color = MinerColors.TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                val gameSubtitle = item.gameName.ifBlank { item.campaignName }
-                                if (gameSubtitle.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = gameSubtitle,
-                                        color = MinerColors.TextSecondary,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            if (isUnlinked) {
-                                Icon(
-                                    imageVector = Icons.Rounded.WarningAmber,
-                                    contentDescription = "Account not linked",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = amber
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                            }
-                            Text(
-                                text = "${item.requiredMinutes}m",
-                                color = MinerColors.TextSecondary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-                }
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(activityNavBarBottom)
-                        .background(Color(0xFF14161F))
-                )
             }
         }
     }
