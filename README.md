@@ -1,4 +1,4 @@
-**Twitch Watch-Time Badge & In-Game Drops Miner for Android**
+# Twitch Watch-Time Badge & In-Game Drops Miner for Android
 
 > **Disclaimer:** Lootly is an independent, open-source project and is not affiliated with, endorsed, or sponsored by Twitch Interactive, Inc. or StreamDatabase. Automating watch-time or interacting with Twitch's internal APIs falls outside Twitch's official Terms of Service—while single-stream watch-time clients rarely face enforcement, use this software at your own discretion and risk.
 
@@ -33,9 +33,9 @@ Lootly (`com.lootly.app`) is a native Kotlin Android app (Jetpack Compose Materi
    - **In-App Account Linking:** Unlinked game drop campaigns appear at the bottom of the queue; tapping one opens Twitch's account-linking page directly inside the app and automatically refreshes drop eligibility when you return.
    - **Multi-Tier & Daily Cap Handling:** Resolves multi-tier badge and drop progressions in ascending tier order, calculates per-tier step durations dynamically, prioritizes items in Auto order (earliest expiration date first, then shortest unowned tier), and rotates away from multi-day events once a daily watch cap is reached.
 
-5. **Live Watch Drops Sync, Manual Pinning & Smarter Stream Switching:**
+5. **Live Watch Drops Sync, Manual Target Selection & Smarter Stream Switching:**
    - **Live Per-Channel Watch Drops Sync (`DropCurrentSessionContext`):** Syncs watched and remaining minutes directly from Twitch for channel-level Watch Drops and badge celebrations, combining session watch time with Twitch GQL inventory syncs so progress updates continuously.
-   - **Manual Pinning (`TARGET` Tile):** Tap any badge or drop in the eligible queue to pin and mine it immediately via the **TARGET** (`Auto` / `Pinned`) tile. Tap **TARGET** (or **Reset Auto**) to return to automatic priority, or let it auto-reset once the pinned item completes or hits its daily cap.
+   - **Manual Mode (`TARGET` Tile):** Tap any badge or drop in the eligible queue to select and mine it immediately via the **TARGET** (`Auto` / `Manual`) tile. Tap **TARGET** (or **Reset Auto**) to return to automatic priority, or let it auto-reset once the manually selected item completes or hits its daily cap.
    - **Smarter Stream Switching & Pacing:** Verifies that the selected stream actually has the target drop active and automatically switches streams if watch-time progress stalls for 2 minutes or the streamer goes offline. Uses a **20–55s** randomized claim delay upon completion and a **5–12s** cooldown between stream switches.
 
 6. **Twitch App Auto-Pause (`UsageStatsManager`):**
@@ -49,8 +49,8 @@ Lootly (`com.lootly.app`) is a native Kotlin Android app (Jetpack Compose Materi
 
 8. **Redesigned Single-Screen Dark UI:**
    - Cleaner single-screen dark layout featuring minimal icon controls, independent **Badges** / **Drops** toggles, and an auto-hiding Permission Health Bar (collapses once Usage Stats, Battery Optimization, and Notifications are granted).
-   - **Liquid Progress Fill:** Active badge/drop card with liquid progress fill animation, icon, title, streamer name, category, split percentage and ETA (`~Xm left`), and **TARGET** mode indicator (`Auto` / `Pinned`).
-   - **Inline Expandable Queue:** Expandable list for eligible drops and badges sorted in Auto priority order (pinned item first, then earliest expiration date, with unlinked drops grouped at the bottom for one-tap in-app account linking).
+   - **Liquid Progress Fill:** Active badge/drop card with liquid progress fill animation, icon, title, streamer name, category, split percentage and ETA (`~Xm left`), and **TARGET** mode indicator (`Auto` / `Manual`).
+   - **Inline Expandable Queue:** Expandable list for eligible drops and badges sorted in Auto priority order (manually selected item first, then earliest expiration date, with unlinked drops grouped at the bottom for one-tap in-app account linking).
    - **Flat Log Console:** Permanently expanded flat monospace console with `HH:mm:ss` timestamps, color-coded log levels, and debug spam filtering.
 
 ---
