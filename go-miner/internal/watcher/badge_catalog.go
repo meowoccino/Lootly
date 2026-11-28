@@ -680,7 +680,13 @@ func isPaidOrSubDropCampaign(camp badgeInventoryCampaign) bool {
 	}
 	if len(camp.Drops) > 0 {
 		hasFreeWatchDrop := false
-		for _, d := range camp.Drops {
+		// Sort drops ascending by RequiredMinutes so we always track the lowest unclaimed tier first.
+		sortedDrops := make([]badgeInventoryDrop, len(camp.Drops))
+		copy(sortedDrops, camp.Drops)
+		sort.SliceStable(sortedDrops, func(i, j int) bool {
+			return sortedDrops[i].RequiredMinutes < sortedDrops[j].RequiredMinutes
+		})
+		for _, d := range sortedDrops {
 			if d.RequiredSubs == 0 && d.RequiredMinutes > 0 {
 				hasFreeWatchDrop = true
 				break
@@ -856,7 +862,13 @@ func campaignDropProgress(c badgeCampaign, inventory []badgeInventoryCampaign) *
 		if gameName == "" {
 			gameName = c.GameName
 		}
-		for _, d := range camp.Drops {
+		// Sort drops ascending by RequiredMinutes so we always track the lowest unclaimed tier first.
+		sortedDrops := make([]badgeInventoryDrop, len(camp.Drops))
+		copy(sortedDrops, camp.Drops)
+		sort.SliceStable(sortedDrops, func(i, j int) bool {
+			return sortedDrops[i].RequiredMinutes < sortedDrops[j].RequiredMinutes
+		})
+		for _, d := range sortedDrops {
 			if d.RequiredMinutes <= 0 || d.RequiredSubs > 0 {
 				continue
 			}

@@ -435,13 +435,6 @@ fun ActiveBadgeCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (isHighlighted && !isUnlinked) {
-                                            Color(0xFF9146FF).copy(alpha = 0.14f)
-                                        } else {
-                                            Color.Transparent
-                                        }
-                                    )
                                     .alpha(if (isUnlinked) 0.72f else 1f)
                                     .clickable {
                                         if (isUnlinked) {
@@ -514,12 +507,20 @@ fun ActiveBadgeCard(
                                         tint = amber
                                     )
                                     Spacer(modifier = Modifier.width(5.dp))
+                                } else if (isHighlighted) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlayArrow,
+                                        contentDescription = "Active",
+                                        modifier = Modifier.size(13.dp),
+                                        tint = Color(0xFFC4A1FF)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
                                 }
                                 Text(
                                     text = "${item.requiredMinutes}m",
                                     color = if (isHighlighted && !isUnlinked) Color(0xFFC4A1FF) else MinerColors.TextSecondary,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = if (isHighlighted && !isUnlinked) FontWeight.SemiBold else FontWeight.Medium
                                 )
                             }
 
