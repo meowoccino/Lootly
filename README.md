@@ -41,14 +41,14 @@ Lootly (`com.lootly.app`) is a native Kotlin Android app (Jetpack Compose Materi
    - **In-App Account Linking:** Unlinked game drop campaigns appear at the bottom of the queue; tapping one opens Twitch's account-linking page directly inside the app and automatically refreshes drop eligibility when you return.
    - **Multi-Tier & Daily Cap Handling:** Resolves multi-tier badge and drop progressions in ascending tier order, calculates per-tier step durations dynamically, prioritizes items in Auto order (earliest expiration date first, then shortest unowned tier), and rotates away from multi-day events once a daily watch cap is reached.
 
-5. **Live Watch Drops Sync, Manual Target Selection & Smarter Stream Switching:**
+5. **Live Watch Drops Sync, Manual Selection & Smarter Stream Switching:**
    - **Live Per-Channel Watch Drops Sync (`DropCurrentSessionContext`):** Syncs watched and remaining minutes directly from Twitch for channel-level Watch Drops and badge celebrations, combining session watch time with Twitch GQL inventory syncs so progress updates continuously.
-   - **Manual Mode (`TARGET` Tile):** Tap any badge or drop in the eligible queue to select and mine it immediately via the **TARGET** (`Auto` / `Manual`) tile. Tap **TARGET** (or **Reset Auto**) to return to automatic priority, or let it auto-reset once the manually selected item completes or hits its daily cap.
+   - **Manual Mode (Auto/Pin Icon):** Tap any badge or drop in the eligible queue to pin and mine it immediately. Tapping the **Auto/Pin icon** in the Hero icon bar when pinned resets back to Auto priority, or it auto-resets once the selected item completes or hits its daily cap.
    - **Smarter Stream Switching & Pacing:** Verifies that the selected stream actually has the target drop active and automatically switches streams if watch-time progress stalls for 2 minutes or the streamer goes offline. Uses a randomized 20 to 55 second claim delay upon completion and a 5 to 12 second cooldown between stream switches.
 
 6. **Twitch App Auto-Pause (`UsageStatsManager`):**
    - `AppUsageMonitor` checks foreground app usage every 3 seconds.
-   - Pauses watch heartbeats immediately when the official Twitch app (`tv.twitch.android.app`) is opened to prevent concurrent stream conflicts, and resumes automatically when closed (toggleable in settings).
+   - Pauses watch heartbeats immediately when the official Twitch app (`tv.twitch.android.app`) is opened to prevent concurrent stream conflicts, and resumes automatically when closed (toggled directly on the main screen via the TV icon switch).
 
 7. **Foreground Service & Zero-Battery Standby:**
    - `MinerForegroundService` runs as a `DATA_SYNC` foreground service (`START_STICKY`) with a partial WakeLock, handling Android 15 and 16+'s 6-hour rolling `dataSync` limit via `onTimeout()`.
@@ -56,9 +56,9 @@ Lootly (`com.lootly.app`) is a native Kotlin Android app (Jetpack Compose Materi
    - Enters Zero-Battery Standby when no eligible items remain, releasing the partial WakeLock until the next catalog scan.
 
 8. **Redesigned Single-Screen Dark UI:**
-   - Cleaner single-screen dark layout featuring minimal icon controls, independent **Badges** and **Drops** toggles, and an auto-hiding Permission Health Bar (collapses once Usage Stats, Battery Optimization, and Notifications are granted).
-   - **Liquid Progress Fill:** Active badge or drop card with liquid progress fill animation, icon, title, streamer name, category, split percentage and remaining time estimate, and **TARGET** mode indicator (`Auto` or `Manual`).
-   - **Inline Expandable Queue:** Expandable list for eligible drops and badges sorted in Auto priority order (manually selected item first, then earliest expiration date, with unlinked drops grouped at the bottom for one-tap in-app account linking).
+   - Cleaner single-screen dark layout featuring minimal icon controls, independent **Badges** and **Drops** toggles, an Auto-Pause TV switch, and an auto-hiding Permission Health Bar (collapses once Usage Stats, Battery Optimization, and Notifications are granted).
+   - **Hero Card with Liquid Progress Fill:** Displays the active badge or drop with a liquid fill level on the icon indicating progress, title, streamer name, category, and the **Auto/Pin icon** (`Auto` / `Manual` mode) in the Hero icon bar.
+   - **Inline Expandable Queue:** Expandable list for eligible drops and badges sorted in Auto priority order (manually pinned item first, then earliest expiration date, with unlinked drops grouped at the bottom for one-tap in-app account linking).
    - **Flat Log Console:** Permanently expanded flat monospace console with `HH:mm:ss` timestamps, color-coded log levels, and debug spam filtering.
 
 ---
@@ -71,7 +71,7 @@ Lootly consists of two components:
 
 ### Directory Layout
 
-    twitch-badge-miner-android/
+    Lootly/
     ├── go-miner/                       # Vendored Go engine with Android changes
     │   ├── cmd/twitch-miner-go/        # Main Go entrypoint
     │   └── internal/                   # GQL, Twitch, Watcher, Server, Model, AndroidNet packages
@@ -109,10 +109,10 @@ Requirements:
 Run:
 
     ./gradlew testDebugUnitTest
-    ./gradlew assembleDebug
+    ./gradlew assembleRelease
 
 Output APK:
-`app/build/outputs/apk/debug/app-debug.apk` (released as `Lootly.apk`)
+`app/build/outputs/apk/release/app-release.apk` (released as `Lootly.apk`)
 
 ### GitHub Actions CI
 
@@ -120,7 +120,7 @@ Output APK:
 1. Sets up Go and Android SDK 35 on `ubuntu-latest`.
 2. Runs Go and Kotlin unit tests.
 3. Cross-compiles `libtwitchminer.so` for `arm64-v8a`.
-4. Assembles the APK and uploads it to the workflow **Artifacts**.
+4. Assembles and signs the release APK (`Lootly.apk`) and uploads it to the workflow **Artifacts**.
 
 ---
 
@@ -165,7 +165,7 @@ Declared in `app/src/main/AndroidManifest.xml`:
    - Headless WebView `Client-Integrity` HTTP bridge client (`internal/auth/`, `internal/gql/`).
    - Multi-tier global badge and in-game drop discovery, StreamDatabase to Twitch Inventory matcher, unlinked drop surfacing, dynamic step duration calculator, priority queue sorter, randomized scan, switch, and claim delays, and daily watch-cap rotator (`internal/watcher/streamdatabase.go`, `internal/watcher/badge.go`, `internal/watcher/loop.go`, `internal/twitch/drops.go`).
    - Live per-channel Watch Drops sync (`DropCurrentSessionContext`), active stream drop verification, 2-minute stall detection with automatic stream failover, and live progress calculation in `/api/streamers`.
-   - Loopback HTTP control endpoints (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`, `POST /api/control/pin-badge`, and category toggle controls).
+   - Loopback HTTP control endpoints (`POST /api/control/pause`, `POST /api/control/resume`, `POST /api/control/refresh-badges`, `POST /api/control/pin-badge`, and `POST /api/control/set-filters`).
    - Stripped desktop Cgo/X11 systray dependencies for pure-Go Android ARM64 builds.
 
 ---
