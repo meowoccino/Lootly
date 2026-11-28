@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// BadgeDropProgress tracks live watched/required progress for the currently
+// watched badge or connected in-game drop on a streamer.
+type BadgeDropProgress struct {
+	Reward          string
+	Game            string
+	WatchedMinutes  int
+	RequiredMinutes int
+	ProgressPercent int
+	IsClaimable     bool
+	IsClaimed       bool
+}
+
 // Streamer represents a Twitch channel being watched by the miner.
 // Fields that may be accessed concurrently are protected by Mu.
 type Streamer struct {
@@ -25,8 +37,9 @@ type Streamer struct {
 	IsTeamWatched     bool           `json:"is_team_watched"`
 	TeamName          string         `json:"team_name,omitempty"`
 	IsBadgeWatched    bool           `json:"is_badge_watched"`
-	BadgeCampaign     string         `json:"badge_campaign,omitempty"`
-	BadgeImageURL     string         `json:"badge_image_url,omitempty"`
+	BadgeCampaign     string             `json:"badge_campaign,omitempty"`
+	BadgeImageURL     string             `json:"badge_image_url,omitempty"`
+	ActiveBadgeDrop   *BadgeDropProgress `json:"-"`
 	BadgeReward       RewardDeadline `json:"-"`
 
 	StreamUpAt time.Time `json:"stream_up_at"`

@@ -369,6 +369,18 @@ func (s *AnalyticsServer) handleStreamers(w http.ResponseWriter, r *http.Request
 				}
 			}
 		}
+		if len(summary.ActiveDrops) == 0 && streamer.ActiveBadgeDrop != nil && streamer.ActiveBadgeDrop.RequiredMinutes > 0 {
+			d := streamer.ActiveBadgeDrop
+			summary.ActiveDrops = []dropProgressShort{{
+				Game:            d.Game,
+				Reward:          d.Reward,
+				ProgressPercent: d.ProgressPercent,
+				WatchedMinutes:  d.WatchedMinutes,
+				RequiredMinutes: d.RequiredMinutes,
+				IsClaimable:     d.IsClaimable,
+				IsClaimed:       d.IsClaimed,
+			}}
+		}
 		streamer.Mu.RUnlock()
 		result = append(result, summary)
 	}

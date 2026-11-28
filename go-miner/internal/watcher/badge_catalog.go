@@ -814,6 +814,70 @@ func allActiveInGameDropCampaigns(inventory []badgeInventoryCampaign, now time.T
 	return out
 }
 
+// campaignDropProgress extracts live watched/required minute progress for c
+// from the user's Twitch inventory so /api/streamers and Drop progress logs
+// reflect exact percentages for both badges and connected in-game drops.
+func campaignDropProgress(c badgeCampaign, inventory []badgeInventoryCampaign) *model.BadgeDropProgress {
+	for _, camp := range inventory {
+		gameSlug := camp.Game.Slug
+		if gameSlug == "" {
+			gameSlug = slugify(camp.Game.Name)
+		}
+		if camp.ID != c.ID && !c.matchesInventory(gameSlug, camp.Name, camp.EndAt) {
+			continue
+		}
+		gameName := camp.Game.DisplayName
+		if gameName == "" {
+			gameName = camp.Game.Name
+		}
+		if gameName == "" {
+			gameName = c.GameName
+		}
+		for _, d := range camp.Drops {
+			if d.RequiredMinutes <= 0 || d.RequiredSubs > 0 {
+				continue
+			}
+			watched := 0
+			claimed := false
+			claimable := false
+			if d.Self != nil {
+				if d.Self.Claimed {
+					continue
+				}
+				watched = d.Self.Minutes
+				if watched < 0 {
+					watched = 0
+				}
+				claimable = d.Self.Instance != ""
+			}
+			pct := 0
+			if d.RequiredMinutes > 0 {
+				pct = (watched * 100) / d.RequiredMinutes
+				if pct > 100 {
+					pct = 100
+				}
+			}
+			reward := strings.TrimSpace(d.Name)
+			if len(d.Benefits) > 0 && strings.TrimSpace(d.Benefits[0].Benefit.Name) != "" {
+				reward = strings.TrimSpace(d.Benefits[0].Benefit.Name)
+			}
+			if reward == "" {
+				reward = c.Name
+			}
+			return &model.BadgeDropProgress{
+				Reward:          reward,
+				Game:            gameName,
+				WatchedMinutes:  watched,
+				RequiredMinutes: d.RequiredMinutes,
+				ProgressPercent: pct,
+				IsClaimable:     claimable,
+				IsClaimed:       claimed,
+			}
+		}
+	}
+	return nil
+}
+
 // connectedInGameDropCampaigns extracts active, unclaimed watch-time in-game
 // drop campaigns from the user's Twitch inventory/dashboard, strictly requiring
 // isAccountConnected == true so unlinked games are never auto-farmed.

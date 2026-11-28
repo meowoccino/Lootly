@@ -315,9 +315,18 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		streamer := findStreamer(get(), tr.username)
 		valid := eligibleNow && streamer != nil && badgeStreamerValid(streamer, campaign)
 		if valid {
+			prog := campaignDropProgress(campaign, allInventoryCampaigns)
 			streamer.Mu.Lock()
 			streamer.BadgeReward = rewards[id]
+			streamer.ActiveBadgeDrop = prog
 			streamer.Mu.Unlock()
+			if prog != nil && prog.RequiredMinutes > 0 {
+				bw.log.Info("Drop progress",
+					"reward", prog.Reward,
+					"streamer", streamer.Username,
+					"progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes),
+				)
+			}
 			continue
 		}
 		if tr.added {
@@ -398,15 +407,20 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 			continue
 		}
 		if existing := findStreamer(get(), candidate.stream.Username); existing != nil {
+			prog := campaignDropProgress(c, allInventoryCampaigns)
 			existing.Mu.Lock()
 			existing.IsBadgeWatched = true
 			existing.BadgeCampaign = c.Name
 			existing.BadgeImageURL = c.BadgeImageURL
 			existing.BadgeReward = rewards[id]
+			existing.ActiveBadgeDrop = prog
 			if len(candidate.campaignIDs) > 0 {
 				existing.Stream.CampaignIDs = append([]string(nil), candidate.campaignIDs...)
 			}
 			existing.Mu.Unlock()
+			if prog != nil && prog.RequiredMinutes > 0 {
+				bw.log.Info("Drop progress", "reward", prog.Reward, "streamer", existing.Username, "progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes))
+			}
 			bw.mu.Lock()
 			bw.tracked[id] = badgeTracked{candidate.stream.Username, false}
 			bw.mu.Unlock()
@@ -417,7 +431,12 @@ func (bw *BadgeWatcher) evaluate(ctx context.Context, add func(context.Context, 
 		}
 		s := bw.badgeStreamer(ctx, candidate.stream, c, candidate.campaignIDs)
 		s.BadgeReward = rewards[id]
+		prog := campaignDropProgress(c, allInventoryCampaigns)
+		s.ActiveBadgeDrop = prog
 		add(ctx, s)
+		if prog != nil && prog.RequiredMinutes > 0 {
+			bw.log.Info("Drop progress", "reward", prog.Reward, "streamer", s.Username, "progress", fmt.Sprintf("%d%% [%d/%d]", prog.ProgressPercent, prog.WatchedMinutes, prog.RequiredMinutes))
+		}
 		bw.mu.Lock()
 		bw.tracked[id] = badgeTracked{candidate.stream.Username, true}
 		bw.mu.Unlock()
