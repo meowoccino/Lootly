@@ -518,10 +518,20 @@ fun ActiveBadgeCard(
                             }
 
                             if (index < sortedEligible.lastIndex) {
-                                HorizontalDivider(
-                                    thickness = 0.5.dp,
-                                    color = Color(0xFF202332)
-                                )
+                                val next = sortedEligible[index + 1]
+                                val isGroupBoundary = item.isDrop != next.isDrop || item.isLinked != next.isLinked
+                                if (isGroupBoundary) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                        thickness = 1.dp,
+                                        color = Color(0xFF32364A)
+                                    )
+                                } else {
+                                    HorizontalDivider(
+                                        thickness = 0.5.dp,
+                                        color = Color(0xFF202332)
+                                    )
+                                }
                             }
                         }
                     }
