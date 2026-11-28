@@ -8,10 +8,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,11 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -103,17 +102,31 @@ fun EligibleListScreen(
         )
     }
 
+    // Highlight at most ONE single active/pinned tier (never multiple tiers of the same campaign)
+    val highlightedKey = remember(sortedEligible, active, pinned) {
+        val linked = sortedEligible.filter { it.isLinked }
+        val matched = when {
+            !pinned.isNullOrBlank() ->
+                linked.firstOrNull { it.badgeName.equals(pinned, ignoreCase = true) }
+                    ?: linked.firstOrNull { it.campaignName.equals(pinned, ignoreCase = true) }
+            active != null ->
+                linked.firstOrNull { it.badgeName.equals(active.badgeName, ignoreCase = true) }
+                    ?: linked.firstOrNull { it.campaignName.equals(active.campaignName, ignoreCase = true) }
+            else -> null
+        }
+        matched?.let { "${it.campaignName}::${it.badgeName}" }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.72f))
+            .background(Color.Black.copy(alpha = 0.70f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onBack
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center
+            ),
+        contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
             modifier = Modifier
@@ -123,64 +136,69 @@ fun EligibleListScreen(
                     indication = null,
                     onClick = {}
                 ),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
             color = Color(0xFF14161F),
-            border = BorderStroke(1.dp, MinerColors.TwitchViolet.copy(alpha = 0.35f)),
-            shadowElevation = 16.dp
+            border = BorderStroke(1.dp, Color(0xFF262837))
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-                    .clipToBounds(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(
-                    items = sortedEligible,
-                    key = { "${it.campaignName}::${it.badgeName}" }
-                ) { item ->
-                    val isPinned = !pinned.isNullOrBlank() &&
-                        (item.badgeName.equals(pinned, ignoreCase = true) ||
-                            item.campaignName.equals(pinned, ignoreCase = true))
-                    val isActive = active != null &&
-                        (item.badgeName.equals(active.badgeName, ignoreCase = true) ||
-                            item.campaignName.equals(active.campaignName, ignoreCase = true))
-                    val isUnlinked = !item.isLinked
-                    val amber = Color(0xFFF5A623)
-
-                    Surface(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Centered drag pill only — no title, no close button
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp, bottom = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .alpha(if (isUnlinked) 0.75f else 1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable {
-                                if (isUnlinked) {
-                                    val url = item.accountLinkUrl.ifBlank { "https://www.twitch.tv/drops/campaigns" }
-                                    val intent = Intent(context, LinkAccountActivity::class.java).apply {
-                                        putExtra(LinkAccountActivity.EXTRA_URL, url)
-                                    }
-                                    linkAccountLauncher.launch(intent)
-                                } else {
-                                    onPinBadge(if (isPinned) null else item.badgeName)
-                                    onBack()
-                                }
-                            },
-                        shape = RoundedCornerShape(16.dp),
-                        color = MinerColors.PanelRaised,
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = when {
-                                isUnlinked -> amber.copy(alpha = 0.28f)
-                                isPinned || isActive -> MinerColors.TwitchViolet.copy(alpha = 0.65f)
-                                else -> MinerColors.Hairline
-                            }
-                        )
-                    ) {
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color.White.copy(alpha = 0.20f))
+                    )
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .clipToBounds()
+                ) {
+                    itemsIndexed(
+                        items = sortedEligible,
+                        key = { _, item -> "${item.campaignName}::${item.badgeName}" }
+                    ) { index, item ->
+                        val itemKey = "${item.campaignName}::${item.badgeName}"
+                        val isHighlighted = itemKey == highlightedKey
+                        val isPinned = !pinned.isNullOrBlank() &&
+                            (item.badgeName.equals(pinned, ignoreCase = true) ||
+                                (isHighlighted && item.campaignName.equals(pinned, ignoreCase = true)))
+                        val isUnlinked = !item.isLinked
+                        val amber = Color(0xFFF5A623)
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                .background(
+                                    if (isHighlighted && !isUnlinked) {
+                                        Color(0xFF9146FF).copy(alpha = 0.14f)
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                )
+                                .alpha(if (isUnlinked) 0.72f else 1f)
+                                .clickable {
+                                    if (isUnlinked) {
+                                        val url = item.accountLinkUrl.ifBlank { "https://www.twitch.tv/drops/campaigns" }
+                                        val intent = Intent(context, LinkAccountActivity::class.java).apply {
+                                            putExtra(LinkAccountActivity.EXTRA_URL, url)
+                                        }
+                                        linkAccountLauncher.launch(intent)
+                                    } else {
+                                        onPinBadge(if (isPinned) null else item.badgeName)
+                                        onBack()
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 11.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (!item.badgeImageUrl.isNullOrBlank()) {
@@ -212,7 +230,7 @@ fun EligibleListScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = item.badgeName,
-                                    color = MinerColors.TextPrimary,
+                                    color = if (isHighlighted && !isUnlinked) Color(0xFFC4A1FF) else MinerColors.TextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
@@ -242,9 +260,16 @@ fun EligibleListScreen(
                             }
                             Text(
                                 text = "${item.requiredMinutes}m",
-                                color = MinerColors.TextSecondary,
+                                color = if (isHighlighted && !isUnlinked) Color(0xFFC4A1FF) else MinerColors.TextSecondary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        if (index < sortedEligible.lastIndex) {
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = Color(0xFF202332)
                             )
                         }
                     }
